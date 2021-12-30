@@ -2,6 +2,8 @@
 #include "game.h"
 #include "platform.h"
 
+#include <string.h>
+
 uint8_t *frameBuffer;
 
 Image blackBishop;

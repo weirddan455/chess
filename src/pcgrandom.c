@@ -1,10 +1,5 @@
 #include "pcgrandom.h"
 
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-
 RngState rngState;
 
 uint32_t pcgGetRandom(void)

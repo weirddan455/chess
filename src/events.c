@@ -3,6 +3,8 @@
 #include "renderer.h"
 #include "pcgrandom.h"
 
+#include <stddef.h>
+
 static bool selected;
 static uint8_t moveFrom;
 static uint8_t moves[64];

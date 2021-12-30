@@ -1,7 +1,6 @@
 #ifndef PCG_RANDOM_H
 #define PCG_RANDOM_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct RngState

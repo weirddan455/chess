@@ -12,9 +12,6 @@
 #include "events.h"
 #include "windows_common.h"
 
-#define WINDOW_WIDTH 720
-#define WINDOW_HEIGHT 720
-
 HANDLE heap;
 
 LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wParam, _In_ LPARAM lParam)
@@ -196,9 +193,22 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	}
 	if (!seedRng())
 	{
-		OutputDebugStringA("Failed to seed RNG");
+		OutputDebugStringA("Failed to seed RNG\n");
 		return 1;
 	}
+	DWORD windowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+	RECT windowSize;
+	windowSize.left = 0;
+	windowSize.top = 0;
+	windowSize.right = FRAMEBUFFER_WIDTH;
+	windowSize.bottom = FRAMEBUFFER_HEIGHT;
+	if (AdjustWindowRect(&windowSize, windowStyle, FALSE) == 0)
+	{
+		OutputDebugStringA("AdjustWindowRect Failed\n");
+		return 1;
+	}
+	int windowWidth = windowSize.right - windowSize.left;
+	int windowHeight = windowSize.bottom - windowSize.top;
 	WNDCLASSA windowClass;
 	windowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	windowClass.lpfnWndProc = WindowsCallback;
@@ -215,8 +225,8 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		OutputDebugStringA("RegisterClassA Failed\n");
 		return 1;
 	}
-	HWND window = CreateWindowA("Chess Window Class", "Chess", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		CW_USEDEFAULT, CW_USEDEFAULT, WINDOW_WIDTH, WINDOW_HEIGHT, NULL, NULL, hInstance, NULL);
+	HWND window = CreateWindowA("Chess Window Class", "Chess", windowStyle,
+		CW_USEDEFAULT, CW_USEDEFAULT, windowWidth, windowHeight, NULL, NULL, hInstance, NULL);
 	if (window == NULL)
 	{
 		OutputDebugStringA("CreateWindowA Failed\n");

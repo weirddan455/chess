@@ -114,13 +114,13 @@ static void loadBmp(const char *fileName, Image *image)
 	}
 	// BMP images have origin at bottom left.
     // Move data so that origin is top left.
-    uint32_t bmpDataIndex = startingPixelIndex;
-    uint32_t pixelDataIndex = pixelDataSize - (width * 4);
+    uint8_t *readPointer = bmpData + startingPixelIndex;
+    uint8_t *writePointer = (pixelData + pixelDataSize) - (width * 4);
     for (int i = 0; i < height; i++)
     {
-        memcpy(&pixelData[pixelDataIndex], &bmpData[bmpDataIndex], width * 4);
-        bmpDataIndex += (width * 4);
-        pixelDataIndex -= (width * 4);
+        memcpy(writePointer, readPointer, width * 4);
+        readPointer += (width * 4);
+        writePointer -= (width * 4);
     }
 	HeapFree(heap, 0, bmpData);
     image->width = width;

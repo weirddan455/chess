@@ -9,6 +9,9 @@
 #include <sys/stat.h>
 #include <X11/Xlib.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include "game.h"
 #include "pcgrandom.h"
 #include "renderer.h"
@@ -172,6 +175,63 @@ static bool seedRng(void)
     return true;
 }
 
+void loadGlyphs(void)
+{
+    int error;
+    FT_Library library;
+    error = FT_Init_FreeType(&library);
+    if (error)
+    {
+        puts("Failed to initialize FreeType");
+        return;
+    }
+
+    FT_Face face;
+    error = FT_New_Face(library, "/usr/share/fonts/liberation/LiberationSans-Regular.ttf", 0, &face);
+    if (error)
+    {
+        puts("Failed to get face");
+        FT_Done_FreeType(library);
+        return;
+    }
+
+    error = FT_Set_Pixel_Sizes(face, 0, 35);
+    if (error)
+    {
+        puts("Failed to set pixel sizes");
+        FT_Done_Face(face);
+        FT_Done_FreeType(library);
+        return;
+    }
+
+    error = FT_Load_Char(face, 'L', FT_LOAD_RENDER);
+    if (error)
+    {
+        puts("Failed to load char");
+        return;
+    }
+
+    int width = face->glyph->bitmap.width;
+    int height = face->glyph->bitmap.rows;
+    size_t bytes = width * height;
+
+    glyphTest.data = malloc(bytes);
+    if (glyphTest.data == NULL)
+    {
+        puts("malloc failed");
+        FT_Done_Face(face);
+        FT_Done_FreeType(library);
+        return;
+    }
+
+    memcpy(glyphTest.data, face->glyph->bitmap.buffer, bytes);
+    glyphTest.width = width;
+    glyphTest.height = height;
+
+    FT_Done_Face(face);
+    FT_Done_FreeType(library);
+}
+
 int main(void)
 {
     if (!seedRng())
@@ -213,6 +273,7 @@ int main(void)
     gc = DefaultGC(display, screen);
 
     loadImages();
+    loadGlyphs();
     initGameState();
     renderFrame(NULL, 0);
 

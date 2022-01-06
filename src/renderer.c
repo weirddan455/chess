@@ -18,6 +18,29 @@ Image whiteKnight;
 Image whitePawn;
 Image whiteQueen;
 Image whiteRook;
+Image glyphTest;
+
+static void drawGlyph(int x, int y)
+{
+    x *= 4;
+    y *= 4;
+    uint8_t *writePointer = frameBuffer + x + (y * FRAMEBUFFER_WIDTH);
+    uint8_t *readPointer = glyphTest.data;
+    for (int h = 0; h < glyphTest.height; h++)
+    {
+        for (int w = 0; w < glyphTest.width; w++)
+        {
+            float alpha = 1.0f - (*readPointer / 255.0f);
+            for (int i = 0; i < 4; i++)
+            {
+                *writePointer *= alpha;
+                writePointer++;
+            }
+            readPointer++;
+        }
+        writePointer += (FRAMEBUFFER_WIDTH - glyphTest.width) * 4;
+    }
+}
 
 static void blitImage(Image *image, int cell)
 {

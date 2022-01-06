@@ -28,6 +28,7 @@ extern Image whiteKnight;
 extern Image whitePawn;
 extern Image whiteQueen;
 extern Image whiteRook;
+extern Image glyphTest;
 
 void renderFrame(uint8_t *highlighted, int numHighlighted);
 

@@ -6,7 +6,7 @@
 
 GameState gameState;
 
-void copyGameState(GameState *copy)
+static void copyGameState(GameState *copy)
 {
     copy->turn = gameState.turn;
     int pieceIndex = 0;
@@ -76,7 +76,7 @@ void movePiece(uint8_t moveTo, uint8_t moveFrom, GameState *state)
     }
 }
 
-uint8_t getKingLocation(enum PieceOwner owner, GameState *state)
+static uint8_t getKingLocation(enum PieceOwner owner, GameState *state)
 {
     for (int i = 0; i < 64; i++)
     {
@@ -89,7 +89,7 @@ uint8_t getKingLocation(enum PieceOwner owner, GameState *state)
     return 0;
 }
 
-int pawnPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int pawnPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
 {
     Piece *pawn = state->board[cell];
     int numMoves = 0;
@@ -155,7 +155,7 @@ int pawnPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     return numMoves;
 }
 
-int knightPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int knightPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
 {
     Piece *knight = state->board[cell];
     uint8_t col = cell % 8;
@@ -192,7 +192,7 @@ int knightPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     return numMoves;
 }
 
-int bishopPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int bishopPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
 {
     Piece *bishop = state->board[cell];
     uint8_t col = cell % 8;
@@ -277,7 +277,7 @@ int bishopPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     return numMoves;
 }
 
-int rookPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int rookPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
 {
     Piece *rook = state->board[cell];
     uint8_t col = cell % 8;
@@ -350,13 +350,13 @@ int rookPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     return numMoves;
 }
 
-int queenPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int queenPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
 {
     int numMoves = bishopPossibleMoves(cell, moves, state);
     return numMoves + rookPossibleMoves(cell, moves + numMoves, state);
 }
 
-int getCastlingMoves(Piece *king, uint8_t *moves, GameState *state)
+static int getCastlingMoves(Piece *king, uint8_t *moves, GameState *state)
 {
     if (king->lastMoved != -1)
     {
@@ -408,7 +408,7 @@ int getCastlingMoves(Piece *king, uint8_t *moves, GameState *state)
     return numMoves;
 }
 
-int kingPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int kingPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
 {
     Piece *king = state->board[cell];
     uint8_t col = cell % 8;
@@ -457,7 +457,7 @@ int kingPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     return numMoves + getCastlingMoves(king, moves + numMoves, state);
 }
 
-int piecePossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int piecePossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
 {
     switch(state->board[cell]->type)
     {

@@ -10,11 +10,8 @@ typedef struct Image
     uint8_t *data;
 } Image;
 
-#define FRAMEBUFFER_WIDTH 720
-#define FRAMEBUFFER_HEIGHT 720
-#define GRID_SIZE (FRAMEBUFFER_WIDTH / 8)
-
 extern uint8_t *frameBuffer;
+extern int frameBufferSize;
 
 extern Image blackBishop;
 extern Image blackKing;

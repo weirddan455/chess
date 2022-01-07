@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -17,11 +18,6 @@
 #include "renderer.h"
 #include "linux_common.h"
 #include "events.h"
-
-// X11 window sizes do not include window decorations.
-// The entire size we ask for is drawable so this is the same size as the framebuffer.
-#define WIDTH FRAMEBUFFER_WIDTH
-#define HEIGHT FRAMEBUFFER_HEIGHT
 
 static Atom wm_delete;
 
@@ -132,14 +128,55 @@ static bool handleNextEvent(void)
         }
         case Expose:
         {
-            XPutImage(display, window, gc, ximage, 0, 0, 0, 0, WIDTH, HEIGHT);
+            linuxBlitToScreen();
+            break;
+        }
+        case ConfigureNotify:
+        {
+            if (event.xconfigure.width != screenWidth || event.xconfigure.height != screenHeight)
+            {
+                screenWidth = event.xconfigure.width;
+                screenHeight = event.xconfigure.height;
+                int newBufferSize;
+                if (screenWidth < screenHeight)
+                {
+                    newBufferSize = screenWidth;
+                }
+                else
+                {
+                    newBufferSize = screenHeight;
+                }
+                newBufferSize = newBufferSize - (newBufferSize % 8);
+                if (newBufferSize != frameBufferSize)
+                {
+                    XDestroyImage(ximage);
+                    frameBuffer = malloc(newBufferSize * newBufferSize * 4);
+                    if (frameBuffer == NULL)
+                    {
+                        puts("malloc failed");
+                        return false;
+                    }
+                    frameBufferSize = newBufferSize;
+                    ximage = XCreateImage(
+                        display, DefaultVisual(display, screen), DefaultDepth(display, screen), ZPixmap, 0,
+                        (char *)frameBuffer, frameBufferSize, frameBufferSize, 32, 0
+                    );
+                    renderFrame(NULL, 0);
+                }
+                else
+                {
+                    linuxBlitToScreen();
+                }
+            }
             break;
         }
         case ButtonPress:
         {
             if (event.xbutton.button == 1)
             {
-                if (!leftClickEvent(event.xbutton.x, event.xbutton.y))
+                int xOffset = (screenWidth - frameBufferSize) / 2;
+                int yOffset = (screenHeight - frameBufferSize) / 2;
+                if (!leftClickEvent(event.xbutton.x - xOffset, event.xbutton.y - yOffset))
                 {
                     puts("Game Over");
                     return false;
@@ -246,29 +283,32 @@ int main(void)
         return 1;
     }
 
-    frameBuffer = malloc(WIDTH * HEIGHT * 4);
+    screenWidth = 720;
+    screenHeight = 720;
+    frameBufferSize = 720;
+
+    frameBuffer = malloc(frameBufferSize * frameBufferSize * 4);
     if (frameBuffer == NULL)
     {
         puts("malloc failed");
         return 1;
     }
-
     window = XCreateSimpleWindow(
         display, DefaultRootWindow(display),
-        0, 0, WIDTH, HEIGHT, 0, 0, 0
+        0, 0, screenWidth, screenHeight, 0, 0, 0
     );
 
-    int screen = DefaultScreen(display);
+    screen = DefaultScreen(display);
 
     XStoreName(display, window, "Chess");
     wm_delete = XInternAtom(display, "WM_DELETE_WINDOW", True);
     XSetWMProtocols(display, window, &wm_delete, 1);
-    XSelectInput(display, window, ExposureMask | ButtonPressMask);
+    XSelectInput(display, window, ExposureMask | ButtonPressMask | StructureNotifyMask);
     XMapWindow(display, window);
 
     ximage = XCreateImage(
         display, DefaultVisual(display, screen), DefaultDepth(display, screen), ZPixmap, 0,
-        (char *)frameBuffer, WIDTH, HEIGHT, 32, 0
+        (char *)frameBuffer, frameBufferSize, frameBufferSize, 32, 0
     );
     gc = DefaultGC(display, screen);
 

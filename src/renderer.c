@@ -4,7 +4,10 @@
 
 #include <string.h>
 
+// Framebuffer is always a square.
+// frameBufferSize is number of pixels wide.
 uint8_t *frameBuffer;
+int frameBufferSize;
 
 Image blackBishop;
 Image blackKing;
@@ -24,7 +27,7 @@ static void drawGlyph(int x, int y)
 {
     x *= 4;
     y *= 4;
-    uint8_t *writePointer = frameBuffer + x + (y * FRAMEBUFFER_WIDTH);
+    uint8_t *writePointer = frameBuffer + x + (y * frameBufferSize);
     uint8_t *readPointer = glyphTest.data;
     for (int h = 0; h < glyphTest.height; h++)
     {
@@ -38,39 +41,42 @@ static void drawGlyph(int x, int y)
             }
             readPointer++;
         }
-        writePointer += (FRAMEBUFFER_WIDTH - glyphTest.width) * 4;
+        writePointer += (frameBufferSize - glyphTest.width) * 4;
     }
 }
 
-static void blitImage(Image *image, int cell)
+static void blitImage(Image image, int cell)
 {
+    int gridSize = frameBufferSize / 8;
     int x = cell % 8;
     int y = cell / 8;
-    int borderX = (GRID_SIZE - image->width) / 2;
-    int borderY = (GRID_SIZE - image->height) / 2;
-    uint64_t bufferIndex = GRID_SIZE * 4 * x;
-    bufferIndex += borderX * 4;
-    bufferIndex += GRID_SIZE * 4 * 8 * GRID_SIZE * y;
-    bufferIndex += borderY * 4 * 8 * GRID_SIZE;
-    uint64_t dataIndex = 0;
-    for (int i = 0; i < image->height; i++)
+    int borderX = (gridSize - image.width) / 2;
+    int borderY = (gridSize - image.height) / 2;
+    uint8_t *frameBufferPointer = frameBuffer;
+    frameBufferPointer += gridSize * 4 * x;
+    frameBufferPointer += borderX * 4;
+    frameBufferPointer += gridSize * 4 * 8 * gridSize * y;
+    frameBufferPointer += borderY * 4 * 8 * gridSize;
+    uint8_t *imagePointer = image.data;
+    int yAdvance = (frameBufferSize * 4) - (image.width * 4);
+    for (int i = 0; i < image.height; i++)
     {
-        for (int j = 0; j < image->width; j++)
+        for (int j = 0; j < image.width; j++)
         {
-            float alpha = image->data[dataIndex + 3];
+            float alpha = imagePointer[3];
             alpha = alpha / 255.0f;
             float inverseAlpha = 1.0f - alpha;
-            frameBuffer[bufferIndex] = (image->data[dataIndex] * alpha) + (frameBuffer[bufferIndex] * inverseAlpha);
-            bufferIndex++;
-            dataIndex++;
-            frameBuffer[bufferIndex] = (image->data[dataIndex] * alpha) + (frameBuffer[bufferIndex] * inverseAlpha);
-            bufferIndex++;
-            dataIndex++;
-            frameBuffer[bufferIndex] = (image->data[dataIndex] * alpha) + (frameBuffer[bufferIndex] * inverseAlpha);
-            bufferIndex += 2;
-            dataIndex += 2;
+            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
+            imagePointer++;
+            frameBufferPointer++;
+            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
+            imagePointer++;
+            frameBufferPointer++;
+            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
+            imagePointer += 2;
+            frameBufferPointer += 2;
         }
-        bufferIndex += (FRAMEBUFFER_WIDTH * 4) - (image->width * 4);
+        frameBufferPointer += yAdvance;
     }
 }
 
@@ -80,28 +86,28 @@ static void drawPieces(void)
     {
         if (gameState.board[i] != NULL)
         {
-            Image *image;
+            Image image;
             if (gameState.board[i]->owner == BLACK)
             {
                 switch(gameState.board[i]->type)
                 {
                     case ROOK:
-                        image = &blackRook;
+                        image = blackRook;
                         break;
                     case KNIGHT:
-                        image = &blackKnight;
+                        image = blackKnight;
                         break;
                     case BISHOP:
-                        image = &blackBishop;
+                        image = blackBishop;
                         break;
                     case QUEEN:
-                        image = &blackQueen;
+                        image = blackQueen;
                         break;
                     case KING:
-                        image = &blackKing;
+                        image = blackKing;
                         break;
                     default:
-                        image = &blackPawn;
+                        image = blackPawn;
                         break;
                 }
             }
@@ -110,22 +116,22 @@ static void drawPieces(void)
                 switch(gameState.board[i]->type)
                 {
                     case ROOK:
-                        image = &whiteRook;
+                        image = whiteRook;
                         break;
                     case KNIGHT:
-                        image = &whiteKnight;
+                        image = whiteKnight;
                         break;
                     case BISHOP:
-                        image = &whiteBishop;
+                        image = whiteBishop;
                         break;
                     case QUEEN:
-                        image = &whiteQueen;
+                        image = whiteQueen;
                         break;
                     case KING:
-                        image = &whiteKing;
+                        image = whiteKing;
                         break;
                     default:
-                        image = &whitePawn;
+                        image = whitePawn;
                         break;
                 }
             }
@@ -136,6 +142,7 @@ static void drawPieces(void)
 
 static void drawGrid(uint8_t *highlighted, int numHightlighted)
 {
+    int gridSize = frameBufferSize / 8;
     uint8_t black[4];
     black[0] = 10;
     black[1] = 56;
@@ -157,15 +164,18 @@ static void drawGrid(uint8_t *highlighted, int numHightlighted)
     whiteHightlightColor[2] = 224;
     whiteHightlightColor[3] = 0;
     uint8_t *gridColor = white;
-    int i = 0;
-    while (i < FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 4)
+    uint8_t *writePointer = frameBuffer;
+    int frameBufferPixels = frameBufferSize * frameBufferSize;
+    int pixel = 0;
+    while (pixel < frameBufferPixels)
     {
-        for (int j = 0; j < GRID_SIZE; j++)
+        for (int j = 0; j < gridSize; j++)
         {
-            memcpy(&frameBuffer[i], gridColor, 4);
-            i += 4;
+            memcpy(writePointer, gridColor, 4);
+            pixel++;
+            writePointer += 4;
         }
-        if (i % ((FRAMEBUFFER_WIDTH * FRAMEBUFFER_HEIGHT * 4) / 8) != 0)
+        if (pixel % (frameBufferPixels / 8) != 0)
         {
             if (gridColor == white)
             {
@@ -177,7 +187,8 @@ static void drawGrid(uint8_t *highlighted, int numHightlighted)
             }
         }
     }
-    for (i = 0; i < numHightlighted; i++)
+    int yAdvance = (frameBufferSize * 4) - (gridSize * 4);
+    for (int i = 0; i < numHightlighted; i++)
     {
         uint8_t x = highlighted[i] % 8;
         uint8_t y = highlighted[i] / 8;
@@ -201,16 +212,15 @@ static void drawGrid(uint8_t *highlighted, int numHightlighted)
         {
             highlightColor = whiteHightlightColor;
         }
-        uint64_t bufferIndex = GRID_SIZE * 4 * x;
-        bufferIndex += GRID_SIZE * 4 * 8 * GRID_SIZE * y;
-        for (int y = 0; y < GRID_SIZE; y++)
+        writePointer = frameBuffer + (gridSize * 4 * x) + (gridSize * 4 * 8 * gridSize * y);
+        for (int y = 0; y < gridSize; y++)
         {
-            for (int x = 0; x < GRID_SIZE; x++)
+            for (int x = 0; x < gridSize; x++)
             {
-                memcpy(&frameBuffer[bufferIndex], highlightColor, 4);
-                bufferIndex += 4;
+                memcpy(writePointer, highlightColor, 4);
+                writePointer += 4;
             }
-            bufferIndex += (FRAMEBUFFER_WIDTH * 4) - (GRID_SIZE * 4);
+            writePointer += yAdvance;
         }
     }
 }

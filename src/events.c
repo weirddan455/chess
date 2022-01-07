@@ -12,12 +12,13 @@ static int numMoves;
 
 bool leftClickEvent(int x, int y)
 {
-	if (x < 0 || y < 0 || x >= FRAMEBUFFER_WIDTH || y >= FRAMEBUFFER_HEIGHT)
+	if (x < 0 || y < 0 || x >= frameBufferSize || y >= frameBufferSize)
 	{
 		return true;
 	}
-	uint8_t cellX = x / GRID_SIZE;
-	uint8_t cellY = y / GRID_SIZE;
+    int gridSize = frameBufferSize / 8;
+	uint8_t cellX = x / gridSize;
+	uint8_t cellY = y / gridSize;
 	uint8_t cell = (cellY * 8) + cellX;
 	if (gameState.board[cell] != NULL && gameState.board[cell]->owner == WHITE)
     {

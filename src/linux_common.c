@@ -5,8 +5,14 @@ Display *display;
 Window window;
 XImage *ximage;
 GC gc;
+int screen;
+
+int screenWidth;
+int screenHeight;
 
 void linuxBlitToScreen(void)
 {
-    XPutImage(display, window, gc, ximage, 0, 0, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT);
+    int x = (screenWidth - frameBufferSize) / 2;
+    int y = (screenHeight - frameBufferSize) / 2;
+    XPutImage(display, window, gc, ximage, 0, 0, x, y, frameBufferSize, frameBufferSize);
 }

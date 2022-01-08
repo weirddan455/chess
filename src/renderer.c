@@ -98,23 +98,64 @@ static void scaleImage(Image image, int cell)
     int yAdvance = (framebuffer.width * 4) - (scaledWidth * 4);
     for (int y = 0; y < scaledHeight; y++)
     {
-        int imageY = ((float)y * scaleY) + 0.5f;
-        uint8_t *imageRow = image.data + (imageY * image.width * 4);
+        float yFloatPixel = y * scaleY;
+        int imageY0 = yFloatPixel;
+        int imageY1;
+        if (imageY0 >= image.height - 1)
+        {
+            imageY0 = image.height - 1;
+            imageY1 = image.height - 1;
+        }
+        else
+        {
+            imageY1 = imageY0 + 1;
+        }
+        float y1Interp = yFloatPixel - imageY0;
+        float y0Interp = 1.0f - y1Interp;
+        uint8_t *row0 = image.data + (imageY0 * image.width * 4);
+        uint8_t *row1 = image.data + (imageY1 * image.width * 4);
         for (int x = 0; x < scaledWidth; x++)
         {
-            int imageX = ((float)x * scaleX) + 0.5f;
-            uint8_t *imagePointer = imageRow + (imageX * 4);
-            float alpha = imagePointer[3];
-            alpha = alpha / 255.0f;
+            float xFloatPixel = x * scaleX;
+            int imageX0 = xFloatPixel;
+            int imageX1;
+            if (imageX0 >= image.width - 1)
+            {
+                imageX0 = image.width - 1;
+                imageX1 = image.width - 1;
+            }
+            else
+            {
+                imageX1 = imageX0 + 1;
+            }
+            float x1Interp = xFloatPixel - imageX0;
+            float x0Interp = 1.0f - x1Interp;
+            uint8_t *x0y0 = row0 + (imageX0 * 4);
+            uint8_t *x1y0 = row0 + (imageX1 * 4);
+            uint8_t *x0y1 = row1 + (imageX0 * 4);
+            uint8_t *x1y1 = row1 + (imageX1 * 4);
+            float row0Interp[4];
+            float row1Interp[4];
+            float finalInterp[4];
+            for (int i = 0; i < 4; i++)
+            {
+                row0Interp[i] = (x0y0[i] * x0Interp) + (x1y0[i] * x1Interp);
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                row1Interp[i] = (x0y1[i] * x0Interp) + (x1y1[i] * x1Interp);
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                finalInterp[i] = (row0Interp[i] * y0Interp) + (row1Interp[i] * y1Interp);
+            }
+            float alpha = finalInterp[3] / 255.0f;
             float inverseAlpha = 1.0f - alpha;
-            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
-            imagePointer++;
-            frameBufferPointer++;
-            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
-            imagePointer++;
-            frameBufferPointer++;
-            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
-            frameBufferPointer += 2;
+            for (int i = 0; i < 3; i++)
+            {
+                frameBufferPointer[i] = (finalInterp[i] * alpha) + (frameBufferPointer[i] * inverseAlpha);
+            }
+            frameBufferPointer += 4;
         }
         frameBufferPointer += yAdvance;
     }

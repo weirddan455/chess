@@ -10,8 +10,16 @@ typedef struct Image
     uint8_t *data;
 } Image;
 
-extern uint8_t *frameBuffer;
-extern int frameBufferSize;
+typedef struct GameArea
+{
+    int size;
+    int gridSize;
+    int x;
+    int y;
+    uint8_t *buffer;
+} GameArea;
+
+extern Image framebuffer;
 
 extern Image blackBishop;
 extern Image blackKing;
@@ -27,6 +35,7 @@ extern Image whiteQueen;
 extern Image whiteRook;
 extern Image glyphTest;
 
+GameArea getGameArea(void);
 void renderFrame(uint8_t *highlighted, int numHighlighted);
 
 #endif

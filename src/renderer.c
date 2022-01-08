@@ -4,10 +4,8 @@
 
 #include <string.h>
 
-// Framebuffer is always a square.
-// frameBufferSize is number of pixels wide.
-uint8_t *frameBuffer;
-int frameBufferSize;
+Image framebuffer;
+GameArea gameArea;
 
 Image blackBishop;
 Image blackKing;
@@ -23,11 +21,30 @@ Image whiteQueen;
 Image whiteRook;
 Image glyphTest;
 
+GameArea getGameArea(void)
+{
+    GameArea gameArea;
+    if (framebuffer.width < framebuffer.height)
+    {
+        gameArea.size = framebuffer.width;
+    }
+    else
+    {
+        gameArea.size = framebuffer.height;
+    }
+    gameArea.size -= gameArea.size % 8;
+    gameArea.gridSize = gameArea.size / 8;
+    gameArea.x = (framebuffer.width - gameArea.size) / 2;
+    gameArea.y = (framebuffer.height - gameArea.size) / 2;
+    gameArea.buffer = (framebuffer.data + (gameArea.x * 4)) + (gameArea.y * framebuffer.width * 4);
+    return gameArea;
+}
+
 static void drawGlyph(int x, int y)
 {
     x *= 4;
     y *= 4;
-    uint8_t *writePointer = frameBuffer + x + (y * frameBufferSize);
+    uint8_t *writePointer = framebuffer.data + x + (y * framebuffer.width);
     uint8_t *readPointer = glyphTest.data;
     for (int h = 0; h < glyphTest.height; h++)
     {
@@ -41,49 +58,14 @@ static void drawGlyph(int x, int y)
             }
             readPointer++;
         }
-        writePointer += (frameBufferSize - glyphTest.width) * 4;
-    }
-}
-
-static void blitImage(Image image, int cell)
-{
-    int gridSize = frameBufferSize / 8;
-    int x = cell % 8;
-    int y = cell / 8;
-    int borderX = (gridSize - image.width) / 2;
-    int borderY = (gridSize - image.height) / 2;
-    uint8_t *frameBufferPointer = frameBuffer;
-    frameBufferPointer += gridSize * 4 * x;
-    frameBufferPointer += borderX * 4;
-    frameBufferPointer += gridSize * 4 * 8 * gridSize * y;
-    frameBufferPointer += borderY * 4 * 8 * gridSize;
-    uint8_t *imagePointer = image.data;
-    int yAdvance = (frameBufferSize * 4) - (image.width * 4);
-    for (int i = 0; i < image.height; i++)
-    {
-        for (int j = 0; j < image.width; j++)
-        {
-            float alpha = imagePointer[3];
-            alpha = alpha / 255.0f;
-            float inverseAlpha = 1.0f - alpha;
-            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
-            imagePointer++;
-            frameBufferPointer++;
-            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
-            imagePointer++;
-            frameBufferPointer++;
-            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
-            imagePointer += 2;
-            frameBufferPointer += 2;
-        }
-        frameBufferPointer += yAdvance;
+        writePointer += (framebuffer.width - glyphTest.width) * 4;
     }
 }
 
 static void scaleImage(Image image, int cell)
 {
-    int gridSize = frameBufferSize / 8;
-    int bufferSquare = gridSize - 10;
+    GameArea gameArea = getGameArea();
+    int bufferSquare = gameArea.gridSize - 10;
     if (bufferSquare < 1)
     {
         return;
@@ -106,14 +88,14 @@ static void scaleImage(Image image, int cell)
     float scaleY = (float)image.height / (float)scaledHeight;
     int cellX = cell % 8;
     int cellY = cell / 8;
-    int borderX = (gridSize - scaledWidth) / 2;
-    int borderY = (gridSize - scaledHeight) / 2;
-    uint8_t *frameBufferPointer = frameBuffer;
-    frameBufferPointer += gridSize * 4 * cellX;
+    int borderX = (gameArea.gridSize - scaledWidth) / 2;
+    int borderY = (gameArea.gridSize - scaledHeight) / 2;
+    uint8_t *frameBufferPointer = gameArea.buffer;
+    frameBufferPointer += cellX * gameArea.gridSize * 4;
     frameBufferPointer += borderX * 4;
-    frameBufferPointer += gridSize * 4 * 8 * gridSize * cellY;
-    frameBufferPointer += borderY * 4 * 8 * gridSize;
-    int yAdvance = (frameBufferSize * 4) - (scaledWidth * 4);
+    frameBufferPointer += cellY * gameArea.gridSize * framebuffer.width * 4;
+    frameBufferPointer += borderY * framebuffer.width * 4;
+    int yAdvance = (framebuffer.width * 4) - (scaledWidth * 4);
     for (int y = 0; y < scaledHeight; y++)
     {
         int imageY = ((float)y * scaleY) + 0.5f;
@@ -200,7 +182,7 @@ static void drawPieces(void)
 
 static void drawGrid(uint8_t *highlighted, int numHightlighted)
 {
-    int gridSize = frameBufferSize / 8;
+    GameArea gameArea = getGameArea();
     uint8_t black[4];
     black[0] = 10;
     black[1] = 56;
@@ -222,18 +204,9 @@ static void drawGrid(uint8_t *highlighted, int numHightlighted)
     whiteHightlightColor[2] = 224;
     whiteHightlightColor[3] = 0;
     uint8_t *gridColor = white;
-    uint8_t *writePointer = frameBuffer;
-    int frameBufferPixels = frameBufferSize * frameBufferSize;
-    int pixel = 0;
-    while (pixel < frameBufferPixels)
+    for (int y = 0; y < gameArea.size; y++)
     {
-        for (int j = 0; j < gridSize; j++)
-        {
-            memcpy(writePointer, gridColor, 4);
-            pixel++;
-            writePointer += 4;
-        }
-        if (pixel % (frameBufferPixels / 8) != 0)
+        if (y % gameArea.gridSize == 0)
         {
             if (gridColor == white)
             {
@@ -244,8 +217,25 @@ static void drawGrid(uint8_t *highlighted, int numHightlighted)
                 gridColor = white;
             }
         }
+        uint8_t *writePointer = gameArea.buffer + (y * framebuffer.width * 4);
+        for (int x = 0; x < gameArea.size; x++)
+        {
+            if (x % gameArea.gridSize == 0)
+            {
+                if (gridColor == white)
+                {
+                    gridColor = black;
+                }
+                else
+                {
+                    gridColor = white;
+                }
+            }
+            memcpy(writePointer, gridColor, 4);
+            writePointer += 4;
+        }
     }
-    int yAdvance = (frameBufferSize * 4) - (gridSize * 4);
+    int yAdvance = (framebuffer.width * 4) - (gameArea.gridSize * 4);
     for (int i = 0; i < numHightlighted; i++)
     {
         uint8_t x = highlighted[i] % 8;
@@ -270,10 +260,10 @@ static void drawGrid(uint8_t *highlighted, int numHightlighted)
         {
             highlightColor = whiteHightlightColor;
         }
-        writePointer = frameBuffer + (gridSize * 4 * x) + (gridSize * 4 * 8 * gridSize * y);
-        for (int y = 0; y < gridSize; y++)
+        uint8_t *writePointer = gameArea.buffer + (x * gameArea.gridSize * 4) + (y * gameArea.gridSize * framebuffer.width * 4);
+        for (int y = 0; y < gameArea.gridSize; y++)
         {
-            for (int x = 0; x < gridSize; x++)
+            for (int x = 0; x < gameArea.gridSize; x++)
             {
                 memcpy(writePointer, highlightColor, 4);
                 writePointer += 4;
@@ -285,6 +275,7 @@ static void drawGrid(uint8_t *highlighted, int numHightlighted)
 
 void renderFrame(uint8_t *highlighted, int numHighlighted)
 {
+    memset(framebuffer.data, 0, framebuffer.width * framebuffer.height * 4);
     drawGrid(highlighted, numHighlighted);
     drawPieces();
     blitToScreen();

@@ -133,40 +133,22 @@ static bool handleNextEvent(void)
         }
         case ConfigureNotify:
         {
-            if (event.xconfigure.width != screenWidth || event.xconfigure.height != screenHeight)
+            if (event.xconfigure.width != framebuffer.width || event.xconfigure.height != framebuffer.height)
             {
-                screenWidth = event.xconfigure.width;
-                screenHeight = event.xconfigure.height;
-                int newBufferSize;
-                if (screenWidth < screenHeight)
+                XDestroyImage(ximage);
+                framebuffer.width = event.xconfigure.width;
+                framebuffer.height = event.xconfigure.height;
+                framebuffer.data = malloc(framebuffer.width * framebuffer.height * 4);
+                if (framebuffer.data == NULL)
                 {
-                    newBufferSize = screenWidth;
+                    puts("malloc failed");
+                    return false;
                 }
-                else
-                {
-                    newBufferSize = screenHeight;
-                }
-                newBufferSize = newBufferSize - (newBufferSize % 8);
-                if (newBufferSize != frameBufferSize)
-                {
-                    XDestroyImage(ximage);
-                    frameBuffer = malloc(newBufferSize * newBufferSize * 4);
-                    if (frameBuffer == NULL)
-                    {
-                        puts("malloc failed");
-                        return false;
-                    }
-                    frameBufferSize = newBufferSize;
-                    ximage = XCreateImage(
-                        display, DefaultVisual(display, screen), DefaultDepth(display, screen), ZPixmap, 0,
-                        (char *)frameBuffer, frameBufferSize, frameBufferSize, 32, 0
-                    );
-                    renderFrame(NULL, 0);
-                }
-                else
-                {
-                    linuxBlitToScreen();
-                }
+                ximage = XCreateImage(
+                    display, DefaultVisual(display, screen), DefaultDepth(display, screen), ZPixmap, 0,
+                    (char *)framebuffer.data, framebuffer.width, framebuffer.height, 32, 0
+                );
+                renderFrame(NULL, 0);
             }
             break;
         }
@@ -174,9 +156,7 @@ static bool handleNextEvent(void)
         {
             if (event.xbutton.button == 1)
             {
-                int xOffset = (screenWidth - frameBufferSize) / 2;
-                int yOffset = (screenHeight - frameBufferSize) / 2;
-                if (!leftClickEvent(event.xbutton.x - xOffset, event.xbutton.y - yOffset))
+                if (!leftClickEvent(event.xbutton.x, event.xbutton.y))
                 {
                     puts("Game Over");
                     return false;
@@ -283,20 +263,20 @@ int main(void)
         return 1;
     }
 
-    screenWidth = 720;
-    screenHeight = 720;
-    frameBufferSize = 720;
+    framebuffer.width = 720;
+    framebuffer.height = 720;
 
-    frameBuffer = malloc(frameBufferSize * frameBufferSize * 4);
-    if (frameBuffer == NULL)
+    framebuffer.data = malloc(framebuffer.width * framebuffer.height * 4);
+    if (framebuffer.data == NULL)
     {
         puts("malloc failed");
         return 1;
     }
     window = XCreateSimpleWindow(
         display, DefaultRootWindow(display),
-        0, 0, screenWidth, screenHeight, 0, 0, 0
+        0, 0, framebuffer.width, framebuffer.height, 0, 0, 0
     );
+    XSetWindowBackgroundPixmap(display, window, None);
 
     screen = DefaultScreen(display);
 
@@ -308,7 +288,7 @@ int main(void)
 
     ximage = XCreateImage(
         display, DefaultVisual(display, screen), DefaultDepth(display, screen), ZPixmap, 0,
-        (char *)frameBuffer, frameBufferSize, frameBufferSize, 32, 0
+        (char *)framebuffer.data, framebuffer.width, framebuffer.height, 32, 0
     );
     gc = DefaultGC(display, screen);
 

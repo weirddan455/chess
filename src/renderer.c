@@ -80,6 +80,64 @@ static void blitImage(Image image, int cell)
     }
 }
 
+static void scaleImage(Image image, int cell)
+{
+    int gridSize = frameBufferSize / 8;
+    int bufferSquare = gridSize - 10;
+    if (bufferSquare < 1)
+    {
+        return;
+    }
+    int scaledWidth;
+    int scaledHeight;
+    if (image.width > image.height)
+    {
+        float scale = (float)bufferSquare / (float)image.width;
+        scaledWidth = bufferSquare;
+        scaledHeight = ((float)image.height * scale) + 0.5f;
+    }
+    else
+    {
+        float scale = (float)bufferSquare / (float)image.height;
+        scaledWidth = ((float)image.width * scale) + 0.5f;
+        scaledHeight = bufferSquare;
+    }
+    float scaleX = (float)image.width / (float)scaledWidth;
+    float scaleY = (float)image.height / (float)scaledHeight;
+    int cellX = cell % 8;
+    int cellY = cell / 8;
+    int borderX = (gridSize - scaledWidth) / 2;
+    int borderY = (gridSize - scaledHeight) / 2;
+    uint8_t *frameBufferPointer = frameBuffer;
+    frameBufferPointer += gridSize * 4 * cellX;
+    frameBufferPointer += borderX * 4;
+    frameBufferPointer += gridSize * 4 * 8 * gridSize * cellY;
+    frameBufferPointer += borderY * 4 * 8 * gridSize;
+    int yAdvance = (frameBufferSize * 4) - (scaledWidth * 4);
+    for (int y = 0; y < scaledHeight; y++)
+    {
+        int imageY = ((float)y * scaleY) + 0.5f;
+        uint8_t *imageRow = image.data + (imageY * image.width * 4);
+        for (int x = 0; x < scaledWidth; x++)
+        {
+            int imageX = ((float)x * scaleX) + 0.5f;
+            uint8_t *imagePointer = imageRow + (imageX * 4);
+            float alpha = imagePointer[3];
+            alpha = alpha / 255.0f;
+            float inverseAlpha = 1.0f - alpha;
+            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
+            imagePointer++;
+            frameBufferPointer++;
+            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
+            imagePointer++;
+            frameBufferPointer++;
+            *frameBufferPointer = (*imagePointer * alpha) + (*frameBufferPointer * inverseAlpha);
+            frameBufferPointer += 2;
+        }
+        frameBufferPointer += yAdvance;
+    }
+}
+
 static void drawPieces(void)
 {
     for (int i = 0; i < 64; i++)
@@ -135,7 +193,7 @@ static void drawPieces(void)
                         break;
                 }
             }
-            blitImage(image, i);
+            scaleImage(image, i);
         }
     }
 }

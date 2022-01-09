@@ -7,7 +7,6 @@ extern Display *display;
 extern Window window;
 extern XImage *ximage;
 extern GC gc;
-extern int screen;
 
 void linuxBlitToScreen(void);
 

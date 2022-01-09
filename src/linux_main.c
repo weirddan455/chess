@@ -20,6 +20,8 @@
 #include "events.h"
 
 static Atom wm_delete;
+static Visual *visual;
+static unsigned int depth;
 
 static void loadBmp(const char *fileName, Image *image)
 {
@@ -112,6 +114,18 @@ static void loadImages(void)
     loadBmp("images/white-rook.bmp", &whiteRook);
 }
 
+static bool newFramebuffer(int width, int height)
+{
+    framebuffer.data = malloc(width * height * 4);
+    if (framebuffer.data == NULL)
+    {
+        puts("malloc failed");
+        return false;
+    }
+    ximage = XCreateImage(display, visual, depth, ZPixmap, 0, (char *)framebuffer.data, width, height, 32, 0);
+    return true;
+}
+
 static bool handleNextEvent(void)
 {
     XEvent event;
@@ -136,18 +150,13 @@ static bool handleNextEvent(void)
             if (event.xconfigure.width != framebuffer.width || event.xconfigure.height != framebuffer.height)
             {
                 XDestroyImage(ximage);
-                framebuffer.width = event.xconfigure.width;
-                framebuffer.height = event.xconfigure.height;
-                framebuffer.data = malloc(framebuffer.width * framebuffer.height * 4);
-                if (framebuffer.data == NULL)
+                if (!newFramebuffer(event.xconfigure.width, event.xconfigure.height))
                 {
-                    puts("malloc failed");
+                    puts("Failed to resize framebuffer");
                     return false;
                 }
-                ximage = XCreateImage(
-                    display, DefaultVisual(display, screen), DefaultDepth(display, screen), ZPixmap, 0,
-                    (char *)framebuffer.data, framebuffer.width, framebuffer.height, 32, 0
-                );
+                framebuffer.width = event.xconfigure.width;
+                framebuffer.height = event.xconfigure.height;
                 renderFrame(NULL, 0);
             }
             break;
@@ -266,19 +275,11 @@ int main(void)
     framebuffer.width = 720;
     framebuffer.height = 720;
 
-    framebuffer.data = malloc(framebuffer.width * framebuffer.height * 4);
-    if (framebuffer.data == NULL)
-    {
-        puts("malloc failed");
-        return 1;
-    }
     window = XCreateSimpleWindow(
         display, DefaultRootWindow(display),
         0, 0, framebuffer.width, framebuffer.height, 0, 0, 0
     );
     XSetWindowBackgroundPixmap(display, window, None);
-
-    screen = DefaultScreen(display);
 
     XStoreName(display, window, "Chess");
     wm_delete = XInternAtom(display, "WM_DELETE_WINDOW", True);
@@ -286,11 +287,16 @@ int main(void)
     XSelectInput(display, window, ExposureMask | ButtonPressMask | StructureNotifyMask);
     XMapWindow(display, window);
 
-    ximage = XCreateImage(
-        display, DefaultVisual(display, screen), DefaultDepth(display, screen), ZPixmap, 0,
-        (char *)framebuffer.data, framebuffer.width, framebuffer.height, 32, 0
-    );
+    int screen = DefaultScreen(display);
+    visual = DefaultVisual(display, screen);
+    depth = DefaultDepth(display, screen);
     gc = DefaultGC(display, screen);
+
+    if (!newFramebuffer(framebuffer.width, framebuffer.height))
+    {
+        puts("Failed to initalize framebuffer");
+        return 1;
+    }
 
     loadImages();
     loadGlyphs();

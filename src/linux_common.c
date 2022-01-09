@@ -5,7 +5,6 @@ Display *display;
 Window window;
 XImage *ximage;
 GC gc;
-int screen;
 
 void linuxBlitToScreen(void)
 {

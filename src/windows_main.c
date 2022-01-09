@@ -12,8 +12,8 @@
 #include "events.h"
 #include "windows_common.h"
 
-HANDLE heap;
-HBITMAP framebufferDIB;
+static HANDLE heap;
+static HBITMAP framebufferDIB;
 
 static bool newFramebuffer(int width, int height)
 {

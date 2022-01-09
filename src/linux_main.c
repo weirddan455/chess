@@ -10,14 +10,12 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
 #include "game.h"
 #include "pcgrandom.h"
 #include "renderer.h"
 #include "linux_common.h"
 #include "events.h"
+#include "fonts.h"
 
 static Atom wm_delete;
 static Visual *visual;
@@ -28,42 +26,9 @@ static void loadBmp(const char *fileName, Image *image)
     image->width = 0;
     image->height = 0;
     image->data = NULL;
-    int fd = open(fileName, O_RDONLY);
-    if (fd == -1)
-    {
-        perror(fileName);
-        return;
-    }
-    struct stat fileInfo;
-    if (fstat(fd, &fileInfo) != 0)
-    {
-        perror(fileName);
-        close(fd);
-        return;
-    }
-    uint8_t *bmpData = malloc(fileInfo.st_size);
-    if (bmpData == NULL)
-    {
-        puts("malloc failed");
-        close(fd);
-        return;
-    }
-    ssize_t bytesRead = read(fd, bmpData, fileInfo.st_size);
-    if (bytesRead == -1)
-    {
-        perror(fileName);
-        close(fd);
-        free(bmpData);
-        return;
-    }
-    if (bytesRead != fileInfo.st_size)
-    {
-        printf("%s: read %ld bytes. %ld expected.\n", fileName, bytesRead, fileInfo.st_size);
-        close(fd);
-        free(bmpData);
-        return;
-    }
-    close(fd);
+
+    uint8_t *bmpData = linuxLoadFile(fileName);
+
     uint32_t startingPixelIndex = *(uint32_t *)&bmpData[10];
     int32_t width = *(int32_t *)&bmpData[18];
     int32_t height = *(int32_t *)&bmpData[22];
@@ -201,63 +166,6 @@ static bool seedRng(void)
     return true;
 }
 
-void loadGlyphs(void)
-{
-    int error;
-    FT_Library library;
-    error = FT_Init_FreeType(&library);
-    if (error)
-    {
-        puts("Failed to initialize FreeType");
-        return;
-    }
-
-    FT_Face face;
-    error = FT_New_Face(library, "/usr/share/fonts/liberation/LiberationSans-Regular.ttf", 0, &face);
-    if (error)
-    {
-        puts("Failed to get face");
-        FT_Done_FreeType(library);
-        return;
-    }
-
-    error = FT_Set_Pixel_Sizes(face, 0, 35);
-    if (error)
-    {
-        puts("Failed to set pixel sizes");
-        FT_Done_Face(face);
-        FT_Done_FreeType(library);
-        return;
-    }
-
-    error = FT_Load_Char(face, 'L', FT_LOAD_RENDER);
-    if (error)
-    {
-        puts("Failed to load char");
-        return;
-    }
-
-    int width = face->glyph->bitmap.width;
-    int height = face->glyph->bitmap.rows;
-    size_t bytes = width * height;
-
-    glyphTest.data = malloc(bytes);
-    if (glyphTest.data == NULL)
-    {
-        puts("malloc failed");
-        FT_Done_Face(face);
-        FT_Done_FreeType(library);
-        return;
-    }
-
-    memcpy(glyphTest.data, face->glyph->bitmap.buffer, bytes);
-    glyphTest.width = width;
-    glyphTest.height = height;
-
-    FT_Done_Face(face);
-    FT_Done_FreeType(library);
-}
-
 int main(void)
 {
     if (!seedRng())
@@ -299,7 +207,7 @@ int main(void)
     }
 
     loadImages();
-    loadGlyphs();
+    loadGlyph();
     initGameState();
     renderFrame(NULL, 0);
 

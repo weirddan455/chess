@@ -14,3 +14,29 @@ void blitToScreen(void)
 	linuxBlitToScreen();
 #endif
 }
+
+void *loadFile(const char *fileName)
+{
+#ifdef _WIN32
+	return NULL;
+#else
+	return linuxLoadFile(fileName);
+#endif
+}
+
+void *allocateMemory(uint64_t size)
+{
+#ifdef _WIN32
+	return NULL;
+#else
+	return linuxAllocateMemory(size);
+#endif
+}
+
+void freeMemory(void *ptr)
+{
+#ifdef _WIN32
+#else
+	linuxFreeMemory(ptr);
+#endif
+}

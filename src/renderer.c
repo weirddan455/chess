@@ -319,5 +319,6 @@ void renderFrame(uint8_t *highlighted, int numHighlighted)
     memset(framebuffer.data, 0, framebuffer.width * framebuffer.height * 4);
     drawGrid(highlighted, numHighlighted);
     drawPieces();
+    drawGlyph(300, 300);
     blitToScreen();
 }

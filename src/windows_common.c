@@ -6,5 +6,5 @@ HDC frameBufferDC;
 
 void windowsBlitToScreen(void)
 {
-	BitBlt(windowDC, 0, 0, FRAMEBUFFER_WIDTH, FRAMEBUFFER_HEIGHT, frameBufferDC, 0, 0, SRCCOPY);
+	BitBlt(windowDC, 0, 0, framebuffer.width, framebuffer.height, frameBufferDC, 0, 0, SRCCOPY);
 }

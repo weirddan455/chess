@@ -13,6 +13,31 @@
 #include "windows_common.h"
 
 HANDLE heap;
+HBITMAP framebufferDIB;
+
+static bool newFramebuffer(int width, int height)
+{
+	BITMAPINFO bitmapInfo;
+	bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bitmapInfo.bmiHeader.biWidth = width;
+	bitmapInfo.bmiHeader.biHeight = -height; // negative value to make the framebuffer top-down (origin in top left corner)
+	bitmapInfo.bmiHeader.biPlanes = 1;
+	bitmapInfo.bmiHeader.biBitCount = 32;
+	bitmapInfo.bmiHeader.biCompression = BI_RGB;
+	bitmapInfo.bmiHeader.biSizeImage = 0;
+	bitmapInfo.bmiHeader.biXPelsPerMeter = 0;
+	bitmapInfo.bmiHeader.biYPelsPerMeter = 0;
+	bitmapInfo.bmiHeader.biClrUsed = 0;
+	bitmapInfo.bmiHeader.biClrImportant = 0;
+	framebufferDIB = CreateDIBSection(frameBufferDC, &bitmapInfo, DIB_RGB_COLORS, &framebuffer.data, NULL, 0);
+	if (framebufferDIB == NULL)
+	{
+		OutputDebugStringA("CreateDIBSection Failed\n");
+		return false;
+	}
+	SelectObject(frameBufferDC, framebufferDIB);
+	return true;
+}
 
 LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wParam, _In_ LPARAM lParam)
 {
@@ -21,17 +46,40 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 		case WM_PAINT:
 		{
 			PAINTSTRUCT paint;
-			RECT rect;
-			GetClientRect(hwnd, &rect);
 			HDC hdc = BeginPaint(hwnd, &paint);
-			BitBlt(hdc, 0, 0, rect.right, rect.bottom, frameBufferDC, 0, 0, SRCCOPY);
+			BitBlt(hdc, 0, 0, framebuffer.width, framebuffer.height, frameBufferDC, 0, 0, SRCCOPY);
 			EndPaint(hwnd, &paint);
+			return 0;
+		}
+		case WM_SIZE:
+		{
+			UINT width = LOWORD(lParam);
+			UINT height = HIWORD(lParam);
+			if (width != framebuffer.width || height != framebuffer.height)
+			{
+				if (DeleteObject(framebufferDIB) == 0)
+				{
+					OutputDebugStringA("Failed to delete framebuffer DIB\n");
+				}
+				if (!newFramebuffer(width, height))
+				{
+					OutputDebugStringA("Failed to resize framebuffer\n");
+					PostQuitMessage(0);
+				}
+				else
+				{
+					framebuffer.width = width;
+					framebuffer.height = height;
+					renderFrame(NULL, 0);
+				}
+			}
 			return 0;
 		}
 		case WM_LBUTTONDOWN:
 		{
 			if (!leftClickEvent(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
 			{
+				OutputDebugStringA("Game Over\n");
 				PostQuitMessage(0);
 			}
 			return 0;
@@ -141,36 +189,6 @@ static void loadImages(void)
     loadBmp("images/white-rook.bmp", &whiteRook);
 }
 
-static bool initFrameBuffer(void)
-{
-	frameBufferDC = CreateCompatibleDC(NULL);
-	if (frameBufferDC == NULL)
-	{
-		OutputDebugStringA("CreateCompatibleDC Failed");
-		return false;
-	}
-	BITMAPINFO bitmapInfo;
-	bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bitmapInfo.bmiHeader.biWidth = FRAMEBUFFER_WIDTH;
-	bitmapInfo.bmiHeader.biHeight = -(FRAMEBUFFER_HEIGHT); // negative value to make the framebuffer top-down (origin in top left corner)
-	bitmapInfo.bmiHeader.biPlanes = 1;
-	bitmapInfo.bmiHeader.biBitCount = 32;
-	bitmapInfo.bmiHeader.biCompression = BI_RGB;
-	bitmapInfo.bmiHeader.biSizeImage = 0;
-	bitmapInfo.bmiHeader.biXPelsPerMeter = 0;
-	bitmapInfo.bmiHeader.biYPelsPerMeter = 0;
-	bitmapInfo.bmiHeader.biClrUsed = 0;
-	bitmapInfo.bmiHeader.biClrImportant = 0;
-	HBITMAP DIBSection = CreateDIBSection(frameBufferDC, &bitmapInfo, DIB_RGB_COLORS, &frameBuffer, NULL, 0);
-	if (DIBSection == NULL)
-	{
-		OutputDebugStringA("CreateDIBSection Failed\n");
-		return false;
-	}
-	SelectObject(frameBufferDC, DIBSection);
-	return true;
-}
-
 static bool seedRng(void)
 {
 	uint64_t randomBuffer[2];
@@ -196,12 +214,20 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		OutputDebugStringA("Failed to seed RNG\n");
 		return 1;
 	}
+	frameBufferDC = CreateCompatibleDC(NULL);
+	if (frameBufferDC == NULL)
+	{
+		OutputDebugStringA("CreateCompatibleDC Failed");
+		return 1;
+	}
+	framebuffer.width = 720;
+	framebuffer.height = 720;
 	DWORD windowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
 	RECT windowSize;
 	windowSize.left = 0;
 	windowSize.top = 0;
-	windowSize.right = FRAMEBUFFER_WIDTH;
-	windowSize.bottom = FRAMEBUFFER_HEIGHT;
+	windowSize.right = framebuffer.width;
+	windowSize.bottom = framebuffer.height;
 	if (AdjustWindowRect(&windowSize, windowStyle, FALSE) == 0)
 	{
 		OutputDebugStringA("AdjustWindowRect Failed\n");
@@ -238,7 +264,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		OutputDebugStringA("Failed to get windowDC\n");
 		return 1;
 	}
-	if (!initFrameBuffer())
+	if (!newFramebuffer(framebuffer.width, framebuffer.height))
 	{
 		OutputDebugStringA("Failed to initalize framebuffer\n");
 		return 1;

@@ -11,8 +11,9 @@
 #include "pcgrandom.h"
 #include "events.h"
 #include "windows_common.h"
+#include "assets.h"
+#include "fonts.h"
 
-static HANDLE heap;
 static HBITMAP framebufferDIB;
 
 static bool newFramebuffer(int width, int height)
@@ -64,7 +65,7 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 				if (!newFramebuffer(width, height))
 				{
 					OutputDebugStringA("Failed to resize framebuffer\n");
-					PostQuitMessage(0);
+					ExitProcess(1);
 				}
 				else
 				{
@@ -80,7 +81,7 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 			if (!leftClickEvent(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
 			{
 				OutputDebugStringA("Game Over\n");
-				PostQuitMessage(0);
+				ExitProcess(0);
 			}
 			return 0;
 		}
@@ -91,102 +92,6 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 		}
 	}
 	return DefWindowProcA(hwnd, Msg, wParam, lParam);
-}
-
-static void loadBmp(const char *fileName, Image *image)
-{
-	char errorBuffer[128];
-	char formatMessageBuffer[128];
-	HANDLE file = CreateFileA(fileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (file == INVALID_HANDLE_VALUE)
-	{
-		DWORD error = GetLastError();
-		FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, error, 0, formatMessageBuffer, 128, NULL);
-		snprintf(errorBuffer, 128, "%s: %s", fileName, formatMessageBuffer);
-		OutputDebugStringA(errorBuffer);
-		return;
-	}
-	LARGE_INTEGER fileSize;
-	if (GetFileSizeEx(file, &fileSize) == 0)
-	{
-		snprintf(errorBuffer, 128, "%s: GetFileSizeEx Failed\n", fileName);
-		OutputDebugStringA(errorBuffer);
-		CloseHandle(file);
-		return;
-	}
-	if (fileSize.QuadPart < 1)
-	{
-		OutputDebugStringA("File size is less than 1 byte\n");
-		CloseHandle(file);
-		return;
-	}
-	uint8_t *bmpData = HeapAlloc(heap, 0, fileSize.QuadPart);
-	if (bmpData == NULL)
-	{
-		OutputDebugStringA("HeapAlloc Failed\n");
-		CloseHandle(file);
-		return;
-	}
-	DWORD bytesRead = 0;
-	ReadFile(file, bmpData, fileSize.QuadPart, &bytesRead, NULL);
-	if (bytesRead != fileSize.QuadPart)
-	{
-		snprintf(errorBuffer, 128, "%s: Did not read the entire file\n", fileName);
-		OutputDebugStringA(errorBuffer);
-		CloseHandle(file);
-		HeapFree(heap, 0, bmpData);
-		return;
-	}
-	CloseHandle(file);
-	uint32_t startingPixelIndex = *(uint32_t *)&bmpData[10];
-    int32_t width = *(int32_t *)&bmpData[18];
-    int32_t height = *(int32_t *)&bmpData[22];
-    uint32_t pixelDataSize = *(uint32_t *)&bmpData[34];
-    uint32_t expectedDataSize = width * height * 4;
-	if (expectedDataSize != pixelDataSize)
-	{
-		snprintf(errorBuffer, 128, "%s: Expected %u bytes. Header reads %u\n", fileName, expectedDataSize, pixelDataSize);
-		OutputDebugStringA(errorBuffer);
-		HeapFree(heap, 0, bmpData);
-		return;
-	}
-	uint8_t *pixelData = HeapAlloc(heap, 0, pixelDataSize);
-	if (pixelData == NULL)
-	{
-		OutputDebugStringA("HeapAlloc Failed\n");
-		HeapFree(heap, 0, bmpData);
-		return;
-	}
-	// BMP images have origin at bottom left.
-    // Move data so that origin is top left.
-    uint8_t *readPointer = bmpData + startingPixelIndex;
-    uint8_t *writePointer = (pixelData + pixelDataSize) - (width * 4);
-    for (int i = 0; i < height; i++)
-    {
-        memcpy(writePointer, readPointer, width * 4);
-        readPointer += (width * 4);
-        writePointer -= (width * 4);
-    }
-	HeapFree(heap, 0, bmpData);
-    image->width = width;
-    image->height = height;
-    image->data = pixelData;
-}
-
-static void loadImages(void)
-{
-    loadBmp("images/black-bishop.bmp", &blackBishop);
-    loadBmp("images/black-king.bmp", &blackKing);
-    loadBmp("images/black-knight.bmp", &blackKnight);
-    loadBmp("images/black-pawn.bmp", &blackPawn);
-    loadBmp("images/black-queen.bmp", &blackQueen);
-    loadBmp("images/black-rook.bmp", &blackRook);
-    loadBmp("images/white-bishop.bmp", &whiteBishop);
-    loadBmp("images/white-king.bmp", &whiteKing);
-    loadBmp("images/white-knight.bmp", &whiteKnight);
-    loadBmp("images/white-pawn.bmp", &whitePawn);
-    loadBmp("images/white-queen.bmp", &whiteQueen);
-    loadBmp("images/white-rook.bmp", &whiteRook);
 }
 
 static bool seedRng(void)
@@ -203,12 +108,6 @@ static bool seedRng(void)
 
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
-	heap = GetProcessHeap();
-	if (heap == NULL)
-	{
-		OutputDebugStringA("GetProcessHeap Failed\n");
-		return 1;
-	}
 	if (!seedRng())
 	{
 		OutputDebugStringA("Failed to seed RNG\n");
@@ -270,6 +169,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		return 1;
 	}
 	loadImages();
+	loadGlyph();
 	initGameState();
 	renderFrame(NULL, 0);
 	while (1)

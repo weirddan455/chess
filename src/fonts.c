@@ -11,13 +11,14 @@
 void loadGlyph(void)
 {
     stbtt_fontinfo fontInfo;
-    unsigned char *fontFile = loadFile("/usr/share/fonts/liberation/LiberationSans-Regular.ttf");
+    unsigned char *fontFile = loadFile("C:\\Windows\\Fonts\\arial.ttf");
     if (fontFile == NULL)
     {
         return;
     }
     if (stbtt_InitFont(&fontInfo, fontFile, 0) == 0)
     {
+        debugLog("stb_truetype failed to initilize");
         return;
     }
     float scale = stbtt_ScaleForPixelHeight(&fontInfo, 100);

@@ -33,6 +33,12 @@ void *linuxLoadFile(const char *fileName)
         close(fd);
         return NULL;
     }
+    if (fileInfo.st_size < 1)
+    {
+        puts("File size is less than 1 byte");
+        close(fd);
+        return NULL;
+    }
     void *data = malloc(fileInfo.st_size);
     if (data == NULL)
     {
@@ -41,23 +47,25 @@ void *linuxLoadFile(const char *fileName)
         return NULL;
     }
     ssize_t bytesRead = read(fd, data, fileInfo.st_size);
-    close(fd);
     if (bytesRead == -1)
     {
         perror(fileName);
+        close(fd);
         free(data);
         return NULL;
     }
     if (bytesRead != fileInfo.st_size)
     {
         printf("%s: read %ld bytes. %ld expected.\n", fileName, bytesRead, fileInfo.st_size);
+        close(fd);
         free(data);
         return NULL;
     }
+    close(fd);
     return data;
 }
 
-void linuxDebugLog(char *message)
+void linuxDebugLog(const char *message)
 {
     puts(message);
 }

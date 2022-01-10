@@ -11,6 +11,10 @@
 static void loadBmp(const char *fileName, Image *image)
 {
     uint8_t *bmpData = loadFile(fileName);
+    if (bmpData == NULL)
+    {
+        return;
+    }
     uint32_t startingPixelIndex = *(uint32_t *)&bmpData[10];
     int32_t width = *(int32_t *)&bmpData[18];
     int32_t height = *(int32_t *)&bmpData[22];

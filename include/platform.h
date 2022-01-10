@@ -5,6 +5,6 @@
 
 void blitToScreen(void);
 void *loadFile(const char *fileName);
-void debugLog(char *message);
+void debugLog(const char *message);
 
 #endif

@@ -11,6 +11,6 @@ extern GC gc;
 
 void linuxBlitToScreen(void);
 void *linuxLoadFile(const char *fileName);
-void linuxDebugLog(char *message);
+void linuxDebugLog(const char *message);
 
 #endif

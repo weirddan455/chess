@@ -56,6 +56,10 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 		{
 			UINT width = LOWORD(lParam);
 			UINT height = HIWORD(lParam);
+			if (width == 0 || height == 0)
+			{
+				return 0;
+			}
 			if (width != framebuffer.width || height != framebuffer.height)
 			{
 				if (DeleteObject(framebufferDIB) == 0)

@@ -55,6 +55,10 @@ static bool handleNextEvent(void)
         }
         case ConfigureNotify:
         {
+            if (event.xconfigure.width == 0 || event.xconfigure.height == 0)
+            {
+                break;
+            }
             if (event.xconfigure.width != framebuffer.width || event.xconfigure.height != framebuffer.height)
             {
                 XDestroyImage(ximage);

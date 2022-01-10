@@ -56,7 +56,7 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 		{
 			UINT width = LOWORD(lParam);
 			UINT height = HIWORD(lParam);
-			if (width == 0 || height == 0)
+			if (width < 1 || height < 1)
 			{
 				return 0;
 			}

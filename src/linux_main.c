@@ -55,7 +55,7 @@ static bool handleNextEvent(void)
         }
         case ConfigureNotify:
         {
-            if (event.xconfigure.width == 0 || event.xconfigure.height == 0)
+            if (event.xconfigure.width < 1 || event.xconfigure.height < 1)
             {
                 break;
             }

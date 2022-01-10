@@ -16,68 +16,11 @@
 #include "linux_common.h"
 #include "events.h"
 #include "fonts.h"
+#include "assets.h"
 
 static Atom wm_delete;
 static Visual *visual;
 static unsigned int depth;
-
-static void loadBmp(const char *fileName, Image *image)
-{
-    image->width = 0;
-    image->height = 0;
-    image->data = NULL;
-
-    uint8_t *bmpData = linuxLoadFile(fileName);
-
-    uint32_t startingPixelIndex = *(uint32_t *)&bmpData[10];
-    int32_t width = *(int32_t *)&bmpData[18];
-    int32_t height = *(int32_t *)&bmpData[22];
-    uint32_t pixelDataSize = *(uint32_t *)&bmpData[34];
-    uint32_t expectedDataSize = width * height * 4;
-    if (expectedDataSize != pixelDataSize)
-    {
-        printf("%s: Expected %u bytes. Header reads %u\n", fileName, expectedDataSize, pixelDataSize);
-        free(bmpData);
-        return;
-    }
-    uint8_t *pixelData = malloc(pixelDataSize);
-    if (pixelData == NULL)
-    {
-        puts("malloc failed");
-        free(bmpData);
-        return;
-    }
-    // BMP images have origin at bottom left.
-    // Move data so that origin is top left matching X11.
-    uint8_t *readPointer = bmpData + startingPixelIndex;
-    uint8_t *writePointer = (pixelData + pixelDataSize) - (width * 4);
-    for (int i = 0; i < height; i++)
-    {
-        memcpy(writePointer, readPointer, width * 4);
-        readPointer += (width * 4);
-        writePointer -= (width * 4);
-    }
-    free(bmpData);
-    image->width = width;
-    image->height = height;
-    image->data = pixelData;
-}
-
-static void loadImages(void)
-{
-    loadBmp("images/black-bishop.bmp", &blackBishop);
-    loadBmp("images/black-king.bmp", &blackKing);
-    loadBmp("images/black-knight.bmp", &blackKnight);
-    loadBmp("images/black-pawn.bmp", &blackPawn);
-    loadBmp("images/black-queen.bmp", &blackQueen);
-    loadBmp("images/black-rook.bmp", &blackRook);
-    loadBmp("images/white-bishop.bmp", &whiteBishop);
-    loadBmp("images/white-king.bmp", &whiteKing);
-    loadBmp("images/white-knight.bmp", &whiteKnight);
-    loadBmp("images/white-pawn.bmp", &whitePawn);
-    loadBmp("images/white-queen.bmp", &whiteQueen);
-    loadBmp("images/white-rook.bmp", &whiteRook);
-}
 
 static bool newFramebuffer(int width, int height)
 {

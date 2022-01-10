@@ -10,8 +10,7 @@ extern XImage *ximage;
 extern GC gc;
 
 void linuxBlitToScreen(void);
-void *linuxAllocateMemory(uint64_t size);
-void linuxFreeMemory(void *ptr);
 void *linuxLoadFile(const char *fileName);
+void linuxDebugLog(char *message);
 
 #endif

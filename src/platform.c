@@ -24,19 +24,10 @@ void *loadFile(const char *fileName)
 #endif
 }
 
-void *allocateMemory(uint64_t size)
-{
-#ifdef _WIN32
-	return NULL;
-#else
-	return linuxAllocateMemory(size);
-#endif
-}
-
-void freeMemory(void *ptr)
+void debugLog(char *message)
 {
 #ifdef _WIN32
 #else
-	linuxFreeMemory(ptr);
+	linuxDebugLog(message);
 #endif
 }

@@ -18,22 +18,6 @@ void linuxBlitToScreen(void)
     XPutImage(display, window, gc, ximage, 0, 0, 0, 0, framebuffer.width, framebuffer.height);
 }
 
-void *linuxAllocateMemory(uint64_t size)
-{
-    void *mem = malloc(size);
-    if (mem == NULL)
-    {
-        puts("malloc failed");
-        return NULL;
-    }
-    return mem;
-}
-
-void linuxFreeMemory(void *ptr)
-{
-    free(ptr);
-}
-
 void *linuxLoadFile(const char *fileName)
 {
     int fd = open(fileName, O_RDONLY);
@@ -71,4 +55,9 @@ void *linuxLoadFile(const char *fileName)
         return NULL;
     }
     return data;
+}
+
+void linuxDebugLog(char *message)
+{
+    puts(message);
 }

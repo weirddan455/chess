@@ -6,6 +6,8 @@
 #define STBTT_STATIC
 #include "stb_truetype.h"
 
+#include <stdlib.h>
+
 void loadGlyph(void)
 {
     stbtt_fontinfo fontInfo;
@@ -20,5 +22,5 @@ void loadGlyph(void)
     }
     float scale = stbtt_ScaleForPixelHeight(&fontInfo, 100);
     glyphTest.data = stbtt_GetCodepointBitmap(&fontInfo, scale, scale, 'Y', &glyphTest.width, &glyphTest.height, 0, 0);
-    freeMemory(fontFile);
+    free(fontFile);
 }

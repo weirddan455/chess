@@ -1,11 +1,10 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
-#include <stdint.h>
+#define LOG_SIZE 256
 
 void blitToScreen(void);
 void *loadFile(const char *fileName);
-void *allocateMemory(uint64_t size);
-void freeMemory(void *ptr);
+void debugLog(char *message);
 
 #endif

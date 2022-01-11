@@ -1,6 +1,5 @@
 #include "renderer.h"
 #include "game.h"
-#include "platform.h"
 
 #include <string.h>
 
@@ -19,7 +18,8 @@ Image whiteKnight;
 Image whitePawn;
 Image whiteQueen;
 Image whiteRook;
-Image glyphTest;
+
+Glyph glyphs[94];
 
 GameArea getGameArea(void)
 {
@@ -40,25 +40,53 @@ GameArea getGameArea(void)
     return gameArea;
 }
 
-static void drawGlyph(int x, int y)
+static void drawGlyph(Glyph glyph, int x, int y)
 {
+    float fontColor[3];
+    fontColor[0] = 13;
+    fontColor[1] = 13;
+    fontColor[2] = 209;
+    x += glyph.xOffset;
+    y += glyph.yOffset;
     x *= 4;
     y *= 4;
     uint8_t *writePointer = framebuffer.data + x + (y * framebuffer.width);
-    uint8_t *readPointer = glyphTest.data;
-    for (int h = 0; h < glyphTest.height; h++)
+    uint8_t *readPointer = glyph.data;
+    for (int h = 0; h < glyph.height; h++)
     {
-        for (int w = 0; w < glyphTest.width; w++)
+        for (int w = 0; w < glyph.width; w++)
         {
-            float alpha = 1.0f - (*readPointer / 255.0f);
-            for (int i = 0; i < 4; i++)
+            float alpha = *readPointer / 255.0f;
+            float inverseAlpha = 1.0f - alpha;
+            for (int i = 0; i < 3; i++)
             {
-                *writePointer *= alpha;
+                *writePointer = (fontColor[i] * alpha) + (*writePointer * inverseAlpha);
                 writePointer++;
             }
+            writePointer++;
             readPointer++;
         }
-        writePointer += (framebuffer.width - glyphTest.width) * 4;
+        writePointer += (framebuffer.width - glyph.width) * 4;
+    }
+}
+
+static void drawString(const char *str, int x, int y)
+{
+    char c = *str;
+    while (c != 0)
+    {
+        if (c == ' ')
+        {
+            x += 10;
+        }
+        else if (c >= 33 && c <= 126)
+        {
+            Glyph glyph = glyphs[c - 33];
+            drawGlyph(glyph, x, y);
+            x += glyph.advance;
+        }
+        str++;
+        c = *str;
     }
 }
 
@@ -319,6 +347,6 @@ void renderFrame(uint8_t *highlighted, int numHighlighted)
     memset(framebuffer.data, 0, framebuffer.width * framebuffer.height * 4);
     drawGrid(highlighted, numHighlighted);
     drawPieces();
-    drawGlyph(300, 300);
+    drawString("The quick brown fox jumped over the lazy dog.", 50, 270);
     blitToScreen();
 }

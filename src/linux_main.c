@@ -154,7 +154,7 @@ int main(void)
     }
 
     loadImages();
-    loadGlyph();
+    loadFont();
     initGameState();
     renderFrame(NULL, 0);
 

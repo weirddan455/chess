@@ -8,10 +8,10 @@
 
 #include <stdlib.h>
 
-void loadGlyph(void)
+void loadFont(void)
 {
     stbtt_fontinfo fontInfo;
-    unsigned char *fontFile = loadFile("C:\\Windows\\Fonts\\arial.ttf");
+    void *fontFile = loadFile("assets/fonts/LiberationSans-Regular.ttf");
     if (fontFile == NULL)
     {
         return;
@@ -21,7 +21,14 @@ void loadGlyph(void)
         debugLog("stb_truetype failed to initilize");
         return;
     }
-    float scale = stbtt_ScaleForPixelHeight(&fontInfo, 100);
-    glyphTest.data = stbtt_GetCodepointBitmap(&fontInfo, scale, scale, 'Y', &glyphTest.width, &glyphTest.height, 0, 0);
+    float scale = stbtt_ScaleForPixelHeight(&fontInfo, 35);
+    for (int i = 0; i < 94; i++)
+    {
+        int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, i + 33);
+        glyphs[i].data = stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndex, &glyphs[i].width, &glyphs[i].height, &glyphs[i].xOffset, &glyphs[i].yOffset);
+        int advance;
+        stbtt_GetGlyphHMetrics(&fontInfo, glyphIndex, &advance, NULL);
+        glyphs[i].advance = advance * scale;
+    }
     free(fontFile);
 }

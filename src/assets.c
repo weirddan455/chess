@@ -53,16 +53,16 @@ static void loadBmp(const char *fileName, Image *image)
 
 void loadImages(void)
 {
-    loadBmp("images/black-bishop.bmp", &blackBishop);
-    loadBmp("images/black-king.bmp", &blackKing);
-    loadBmp("images/black-knight.bmp", &blackKnight);
-    loadBmp("images/black-pawn.bmp", &blackPawn);
-    loadBmp("images/black-queen.bmp", &blackQueen);
-    loadBmp("images/black-rook.bmp", &blackRook);
-    loadBmp("images/white-bishop.bmp", &whiteBishop);
-    loadBmp("images/white-king.bmp", &whiteKing);
-    loadBmp("images/white-knight.bmp", &whiteKnight);
-    loadBmp("images/white-pawn.bmp", &whitePawn);
-    loadBmp("images/white-queen.bmp", &whiteQueen);
-    loadBmp("images/white-rook.bmp", &whiteRook);
+    loadBmp("assets/images/black-bishop.bmp", &blackBishop);
+    loadBmp("assets/images/black-king.bmp", &blackKing);
+    loadBmp("assets/images/black-knight.bmp", &blackKnight);
+    loadBmp("assets/images/black-pawn.bmp", &blackPawn);
+    loadBmp("assets/images/black-queen.bmp", &blackQueen);
+    loadBmp("assets/images/black-rook.bmp", &blackRook);
+    loadBmp("assets/images/white-bishop.bmp", &whiteBishop);
+    loadBmp("assets/images/white-king.bmp", &whiteKing);
+    loadBmp("assets/images/white-knight.bmp", &whiteKnight);
+    loadBmp("assets/images/white-pawn.bmp", &whitePawn);
+    loadBmp("assets/images/white-queen.bmp", &whiteQueen);
+    loadBmp("assets/images/white-rook.bmp", &whiteRook);
 }

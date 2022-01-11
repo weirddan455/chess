@@ -173,7 +173,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		return 1;
 	}
 	loadImages();
-	loadGlyph();
+	loadFont();
 	initGameState();
 	renderFrame(NULL, 0);
 	while (1)

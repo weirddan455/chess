@@ -3,4 +3,4 @@ mkdir build
 cd build
 cmake ..
 make
-ln -s ../images images
+ln -s ../assets assets

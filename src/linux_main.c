@@ -18,6 +18,10 @@
 #include "fonts.h"
 #include "assets.h"
 
+#define QUIT 1
+#define RENDER 2
+#define BLIT 4
+
 static Atom wm_delete;
 static Visual *visual;
 static unsigned int depth;
@@ -34,7 +38,7 @@ static bool newFramebuffer(int width, int height)
     return true;
 }
 
-static bool handleNextEvent(int *newWidth, int *newHeight)
+static uint8_t handleNextEvent(int *newWidth, int *newHeight)
 {
     XEvent event;
     XNextEvent(display, &event);
@@ -44,9 +48,13 @@ static bool handleNextEvent(int *newWidth, int *newHeight)
         {
             if (event.xclient.data.l[0] == wm_delete)
             {
-                return false;
+                return QUIT;
             }
             break;
+        }
+        case Expose:
+        {
+            return BLIT;
         }
         case ConfigureNotify:
         {
@@ -61,17 +69,19 @@ static bool handleNextEvent(int *newWidth, int *newHeight)
                 if (!leftClickEvent(event.xbutton.x, event.xbutton.y))
                 {
                     puts("Game Over");
-                    return false;
+                    return QUIT;
                 }
+                return RENDER;
             }
             else if (event.xbutton.button == 3)
             {
                 rightClickEvent();
+                return RENDER;
             }
             break;
         }
     }
-    return true;
+    return 0;
 }
 
 static bool seedRng(void)
@@ -143,9 +153,11 @@ int main(void)
     {
         int newWidth = 0;
         int newHeight = 0;
+        uint8_t flags = 0;
         do
         {
-            if (!handleNextEvent(&newWidth, &newHeight))
+            flags |= handleNextEvent(&newWidth, &newHeight);
+            if (flags & QUIT)
             {
                 return 0;
             }
@@ -160,8 +172,16 @@ int main(void)
                 puts("Failed to resize framebuffer");
                 return 0;
             }
+            renderFrame();
         }
-        renderFrame();
+        else if (flags & RENDER)
+        {
+            renderFrame();
+        }
+        else if (flags & BLIT)
+        {
+            linuxBlitToScreen();
+        }
     }
 
     return 0;

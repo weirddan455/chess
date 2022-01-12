@@ -50,22 +50,22 @@ void *windowsLoadFile(const char *fileName)
 		CloseHandle(file);
 		return NULL;
 	}
-	void *bmpData = malloc(fileSize.LowPart);
-	if (bmpData == NULL)
+	void *data = malloc(fileSize.LowPart);
+	if (data == NULL)
 	{
 		OutputDebugStringA("malloc failed\r\n");
 		CloseHandle(file);
 		return NULL;
 	}
 	DWORD bytesRead = 0;
-	if (ReadFile(file, bmpData, fileSize.LowPart, &bytesRead, NULL) == 0)
+	if (ReadFile(file, data, fileSize.LowPart, &bytesRead, NULL) == 0)
 	{
 		DWORD error = GetLastError();
 		FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, error, 0, formatMessageBuffer, 128, NULL);
 		snprintf(errorBuffer, LOG_SIZE, "%s: %s\r\n", fileName, formatMessageBuffer);
 		OutputDebugStringA(errorBuffer);
 		CloseHandle(file);
-		free(bmpData);
+		free(data);
 		return NULL;
 	}
 	if (bytesRead != fileSize.LowPart)
@@ -73,11 +73,11 @@ void *windowsLoadFile(const char *fileName)
 		snprintf(errorBuffer, LOG_SIZE, "%s: read %d bytes. %d expected.\r\n", fileName, bytesRead, fileSize.LowPart);
 		OutputDebugStringA(errorBuffer);
 		CloseHandle(file);
-		free(bmpData);
+		free(data);
 		return NULL;
 	}
 	CloseHandle(file);
-	return bmpData;
+	return data;
 }
 
 void windowsDebugLog(const char *message)

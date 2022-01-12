@@ -1,8 +1,8 @@
-#include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "game.h"
+#include "platform.h"
 
 GameState gameState;
 
@@ -85,7 +85,7 @@ static uint8_t getKingLocation(enum PieceOwner owner, GameState *state)
             return i;
         }
     }
-    puts("wtf couldn't find king");
+    debugLog("wtf couldn't find king");
     return 0;
 }
 

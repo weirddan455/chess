@@ -29,13 +29,12 @@ bool leftClickEvent(int x, int y)
         {
             selected = true;
             moveFrom = cell;
-            uint8_t highlighted[64];
             for (int i = 0; i < numMoves; i++)
             {
                 highlighted[i] = moves[i] & MOVE_MASK;
             }
             highlighted[numMoves] = cell;
-            renderFrame(highlighted, numMoves + 1);
+            numHightlighted = numMoves + 1;
         }
     }
     else if (selected)
@@ -62,7 +61,7 @@ bool leftClickEvent(int x, int y)
             }
             uint32_t randomMove = pcgRangedRandom(numComputerMoves);
             movePiece(computerMoveTo[randomMove], computerMoveFrom[randomMove], &gameState);
-            renderFrame(NULL, 0);
+            numHightlighted = 0;
         }
     }
     return true;
@@ -71,5 +70,5 @@ bool leftClickEvent(int x, int y)
 void rightClickEvent(void)
 {
     selected = false;
-    renderFrame(NULL, 0);
+    numHightlighted = 0;
 }

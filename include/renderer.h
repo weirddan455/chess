@@ -46,7 +46,10 @@ extern Image whiteRook;
 
 extern Glyph glyphs[94];
 
+extern uint8_t highlighted[64];
+extern int numHightlighted;
+
 GameArea getGameArea(void);
-void renderFrame(uint8_t *highlighted, int numHighlighted);
+void renderFrame(void);
 
 #endif

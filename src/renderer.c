@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "game.h"
+#include "platform.h"
 
 #include <string.h>
 
@@ -20,6 +21,9 @@ Image whiteQueen;
 Image whiteRook;
 
 Glyph glyphs[94];
+
+uint8_t highlighted[64];
+int numHightlighted;
 
 GameArea getGameArea(void)
 {
@@ -249,7 +253,7 @@ static void drawPieces(void)
     }
 }
 
-static void drawGrid(uint8_t *highlighted, int numHightlighted)
+static void drawGrid(void)
 {
     GameArea gameArea = getGameArea();
     uint8_t black[4];
@@ -342,10 +346,10 @@ static void drawGrid(uint8_t *highlighted, int numHightlighted)
     }
 }
 
-void renderFrame(uint8_t *highlighted, int numHighlighted)
+void renderFrame(void)
 {
     memset(framebuffer.data, 0, framebuffer.width * framebuffer.height * 4);
-    drawGrid(highlighted, numHighlighted);
+    drawGrid();
     drawPieces();
     drawString("The quick brown fox jumped over the lazy dog.", 50, 270);
     blitToScreen();

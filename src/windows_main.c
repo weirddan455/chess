@@ -33,7 +33,7 @@ static bool newFramebuffer(int width, int height)
 	framebufferDIB = CreateDIBSection(frameBufferDC, &bitmapInfo, DIB_RGB_COLORS, &framebuffer.data, NULL, 0);
 	if (framebufferDIB == NULL)
 	{
-		OutputDebugStringA("CreateDIBSection Failed\n");
+		OutputDebugStringA("CreateDIBSection Failed\r\n");
 		return false;
 	}
 	SelectObject(frameBufferDC, framebufferDIB);
@@ -64,18 +64,18 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 			{
 				if (DeleteObject(framebufferDIB) == 0)
 				{
-					OutputDebugStringA("Failed to delete framebuffer DIB\n");
+					OutputDebugStringA("Failed to delete framebuffer DIB\r\n");
 				}
 				if (!newFramebuffer(width, height))
 				{
-					OutputDebugStringA("Failed to resize framebuffer\n");
+					OutputDebugStringA("Failed to resize framebuffer\r\n");
 					ExitProcess(1);
 				}
 				else
 				{
 					framebuffer.width = width;
 					framebuffer.height = height;
-					renderFrame(NULL, 0);
+					renderFrame();
 				}
 			}
 			return 0;
@@ -84,14 +84,16 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 		{
 			if (!leftClickEvent(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
 			{
-				OutputDebugStringA("Game Over\n");
+				OutputDebugStringA("Game Over\r\n");
 				ExitProcess(0);
 			}
+			renderFrame();
 			return 0;
 		}
 		case WM_RBUTTONDOWN:
 		{
 			rightClickEvent();
+			renderFrame();
 			return 0;
 		}
 	}
@@ -114,7 +116,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 {
 	if (!seedRng())
 	{
-		OutputDebugStringA("Failed to seed RNG\n");
+		OutputDebugStringA("Failed to seed RNG\r\n");
 		return 1;
 	}
 	frameBufferDC = CreateCompatibleDC(NULL);
@@ -133,7 +135,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	windowSize.bottom = framebuffer.height;
 	if (AdjustWindowRect(&windowSize, windowStyle, FALSE) == 0)
 	{
-		OutputDebugStringA("AdjustWindowRect Failed\n");
+		OutputDebugStringA("AdjustWindowRect Failed\r\n");
 		return 1;
 	}
 	int windowWidth = windowSize.right - windowSize.left;
@@ -151,32 +153,32 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	windowClass.lpszClassName = "Chess Window Class";
 	if (RegisterClassA(&windowClass) == 0)
 	{
-		OutputDebugStringA("RegisterClassA Failed\n");
+		OutputDebugStringA("RegisterClassA Failed\r\n");
 		return 1;
 	}
 	HWND window = CreateWindowA("Chess Window Class", "Chess", windowStyle,
 		CW_USEDEFAULT, CW_USEDEFAULT, windowWidth, windowHeight, NULL, NULL, hInstance, NULL);
 	if (window == NULL)
 	{
-		OutputDebugStringA("CreateWindowA Failed\n");
+		OutputDebugStringA("CreateWindowA Failed\r\n");
 		return 1;
 	}
 	windowDC = GetDC(window);
 	if (windowDC == NULL)
 	{
-		OutputDebugStringA("Failed to get windowDC\n");
+		OutputDebugStringA("Failed to get windowDC\r\n");
 		return 1;
 	}
 	if (!newFramebuffer(framebuffer.width, framebuffer.height))
 	{
-		OutputDebugStringA("Failed to initalize framebuffer\n");
+		OutputDebugStringA("Failed to initalize framebuffer\r\n");
 		return 1;
 	}
 	loadImages();
 	loadFont();
 	initGameState();
-	renderFrame(NULL, 0);
-	while (1)
+	renderFrame();
+	while (true)
 	{
 		MSG message;
 		BOOL messageReturn = GetMessageA(&message, window, 0, 0);

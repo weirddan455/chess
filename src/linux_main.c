@@ -9,7 +9,6 @@
 #include <sys/stat.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <time.h>
 
 #include "game.h"
 #include "pcgrandom.h"
@@ -18,9 +17,6 @@
 #include "events.h"
 #include "fonts.h"
 #include "assets.h"
-
-#define BILLION 1000000000
-#define MILLION 1000000
 
 static Atom wm_delete;
 static Visual *visual;
@@ -124,7 +120,7 @@ int main(void)
     XStoreName(display, window, "Chess");
     wm_delete = XInternAtom(display, "WM_DELETE_WINDOW", True);
     XSetWMProtocols(display, window, &wm_delete, 1);
-    XSelectInput(display, window, ButtonPressMask | StructureNotifyMask);
+    XSelectInput(display, window, ExposureMask | ButtonPressMask | StructureNotifyMask);
     XMapWindow(display, window);
 
     int screen = DefaultScreen(display);
@@ -143,22 +139,17 @@ int main(void)
     initGameState();
     renderFrame();
 
-    struct timespec sleepTime;
-    sleepTime.tv_sec = 0;
-
     while(true)
     {
-        struct timespec start;
-        clock_gettime(CLOCK_MONOTONIC, &start);
         int newWidth = 0;
         int newHeight = 0;
-        while (XPending(display) > 0)
+        do
         {
             if (!handleNextEvent(&newWidth, &newHeight))
             {
                 return 0;
             }
-        }
+        } while(XPending(display) > 0);
         if (newWidth > 0 && newHeight > 0 && (newWidth != framebuffer.width || newHeight != framebuffer.height))
         {
             XDestroyImage(ximage);
@@ -171,18 +162,6 @@ int main(void)
             }
         }
         renderFrame();
-        struct timespec end;
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        // 100ms target frame time (10 FPS frame cap for now to reduce CPU usage.)
-        // Can reduce this number in the future to increase FPS cap if we want animations or something.
-        // Renderer can currently runs at about 50 FPS at 1080p on my system (and much higher at lower resolutions.)
-        int64_t elapsedTime = (end.tv_sec - start.tv_sec) * BILLION;
-        elapsedTime += (end.tv_nsec - start.tv_nsec);
-        sleepTime.tv_nsec = (100 * MILLION) - elapsedTime;
-        if (sleepTime.tv_nsec > 0)
-        {
-            nanosleep(&sleepTime, NULL);
-        }
     }
 
     return 0;

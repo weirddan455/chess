@@ -5,7 +5,6 @@
 #include <string.h>
 
 Image framebuffer;
-GameArea gameArea;
 
 Image blackBishop;
 Image blackKing;
@@ -24,6 +23,7 @@ Glyph glyphs[94];
 
 uint8_t highlighted[64];
 int numHightlighted;
+char *renderString;
 
 GameArea getGameArea(void)
 {
@@ -44,21 +44,55 @@ GameArea getGameArea(void)
     return gameArea;
 }
 
-static void drawGlyph(Glyph glyph, int x, int y)
+static void drawRectangle(void)
 {
+    float color[3];
+    color[0] = 41;
+    color[1] = 46;
+    color[2] = 42;
+    float alpha = 0.95f;
+    float inverseAlpha = 1.0f - alpha;
+    GameArea gameArea = getGameArea();
+    int size = gameArea.size / 2;
+    int position = gameArea.size / 4;
+    uint8_t *writePointer = gameArea.buffer + (position * 4) + (position * framebuffer.width * 4);
+    int yAdvance = (framebuffer.width - size) * 4;
+    for (int h = 0; h < size; h++)
+    {
+        for (int w = 0; w < size; w++)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                *writePointer = (color[i] * alpha) + (*writePointer * inverseAlpha);
+                writePointer++;
+            }
+            writePointer++;
+        }
+        writePointer += yAdvance;
+    }
+}
+
+static void drawGlyph(Glyph *glyph, int x, int y)
+{
+    GameArea gameArea = getGameArea();
+    int glyphWidth = glyph->width;
+    int glyphHeight = glyph->height;
+    x += glyph->xOffset;
+    y += glyph->yOffset;
+    if (x < 0 || y < 0 || x + glyphWidth > gameArea.size || y + glyphHeight > gameArea.size)
+    {
+        return;
+    }
     float fontColor[3];
     fontColor[0] = 13;
     fontColor[1] = 13;
     fontColor[2] = 209;
-    x += glyph.xOffset;
-    y += glyph.yOffset;
-    x *= 4;
-    y *= 4;
-    uint8_t *writePointer = framebuffer.data + x + (y * framebuffer.width);
-    uint8_t *readPointer = glyph.data;
-    for (int h = 0; h < glyph.height; h++)
+    uint8_t *writePointer = gameArea.buffer + (x * 4) + (y * framebuffer.width * 4);
+    uint8_t *readPointer = glyph->data;
+    int yAdvance = (framebuffer.width - glyphWidth) * 4;
+    for (int h = 0; h < glyphHeight; h++)
     {
-        for (int w = 0; w < glyph.width; w++)
+        for (int w = 0; w < glyphWidth; w++)
         {
             float alpha = *readPointer / 255.0f;
             float inverseAlpha = 1.0f - alpha;
@@ -70,13 +104,39 @@ static void drawGlyph(Glyph glyph, int x, int y)
             writePointer++;
             readPointer++;
         }
-        writePointer += (framebuffer.width - glyph.width) * 4;
+        writePointer += yAdvance;
     }
 }
 
-static void drawString(const char *str, int x, int y)
+static void drawString(const char *str)
 {
+    const char *start = str;
     char c = *str;
+    int width = 0;
+    while (c != 0)
+    {
+        if (c == ' ')
+        {
+            width += 10;
+        }
+        else if (c >= 33 && c <= 126)
+        {
+            Glyph *glyph = &glyphs[c - 33];
+            width += glyph->advance;
+            char next = str[1];
+            if (next >= 33 && next <= 126)
+            {
+                width += glyph->kerning[next - 33];
+            }
+        }
+        str++;
+        c = *str;
+    }
+    GameArea gameArea = getGameArea();
+    int y = (gameArea.size / 4) + 75;
+    int x = (gameArea.size / 2) - (width / 2);
+    str = start;
+    c = *str;
     while (c != 0)
     {
         if (c == ' ')
@@ -85,9 +145,14 @@ static void drawString(const char *str, int x, int y)
         }
         else if (c >= 33 && c <= 126)
         {
-            Glyph glyph = glyphs[c - 33];
+            Glyph *glyph = &glyphs[c - 33];
             drawGlyph(glyph, x, y);
-            x += glyph.advance;
+            x += glyph->advance;
+            char next = str[1];
+            if (next >= 33 && next <= 126)
+            {
+                x += glyph->kerning[next - 33];
+            }
         }
         str++;
         c = *str;
@@ -351,6 +416,10 @@ void renderFrame(void)
     memset(framebuffer.data, 0, framebuffer.width * framebuffer.height * 4);
     drawGrid();
     drawPieces();
-    drawString("The quick brown fox jumped over the lazy dog.", 50, 270);
+    if (renderString != NULL)
+    {
+        drawRectangle();
+        drawString(renderString);
+    }
     blitToScreen();
 }

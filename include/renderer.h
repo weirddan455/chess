@@ -26,6 +26,7 @@ typedef struct Glyph
     int xOffset;
     int yOffset;
     int advance;
+    int kerning[94];
     uint8_t *data;
 } Glyph;
 
@@ -48,6 +49,7 @@ extern Glyph glyphs[94];
 
 extern uint8_t highlighted[64];
 extern int numHightlighted;
+extern char *renderString;
 
 GameArea getGameArea(void);
 void renderFrame(void);

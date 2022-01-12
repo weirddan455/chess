@@ -21,14 +21,22 @@ void loadFont(void)
         debugLog("stb_truetype failed to initilize");
         return;
     }
-    float scale = stbtt_ScaleForPixelHeight(&fontInfo, 35);
+    float scale = stbtt_ScaleForPixelHeight(&fontInfo, 50);
+    int glyphIndices[94];
     for (int i = 0; i < 94; i++)
     {
-        int glyphIndex = stbtt_FindGlyphIndex(&fontInfo, i + 33);
-        glyphs[i].data = stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndex, &glyphs[i].width, &glyphs[i].height, &glyphs[i].xOffset, &glyphs[i].yOffset);
+        glyphIndices[i] = stbtt_FindGlyphIndex(&fontInfo, i + 33);
+    }
+    for (int i = 0; i < 94; i++)
+    {
+        glyphs[i].data = stbtt_GetGlyphBitmap(&fontInfo, scale, scale, glyphIndices[i], &glyphs[i].width, &glyphs[i].height, &glyphs[i].xOffset, &glyphs[i].yOffset);
         int advance;
-        stbtt_GetGlyphHMetrics(&fontInfo, glyphIndex, &advance, NULL);
+        stbtt_GetGlyphHMetrics(&fontInfo, glyphIndices[i], &advance, NULL);
         glyphs[i].advance = advance * scale;
+        for (int j = 0; j < 94; j++)
+        {
+            glyphs[i].kerning[j] = stbtt_GetGlyphKernAdvance(&fontInfo, glyphIndices[i], glyphIndices[j]) * scale;
+        }
     }
     free(fontFile);
 }

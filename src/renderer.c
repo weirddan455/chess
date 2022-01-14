@@ -20,6 +20,7 @@ Image whiteQueen;
 Image whiteRook;
 
 Glyph glyphs[94];
+FontMetrics fontMetrics;
 
 uint8_t highlighted[64];
 int numHightlighted;
@@ -44,7 +45,33 @@ GameArea getGameArea(void)
     return gameArea;
 }
 
-static void drawRectangle(void)
+static int getStringWidth(const char *str)
+{
+    char c = *str;
+    int width = 0;
+    while (c != 0)
+    {
+        if (c == ' ')
+        {
+            width += 10;
+        }
+        else if (c >= 33 && c <= 126)
+        {
+            Glyph *glyph = &glyphs[c - 33];
+            width += glyph->advance;
+            char next = str[1];
+            if (next >= 33 && next <= 126)
+            {
+                width += glyph->kerning[next - 33];
+            }
+        }
+        str++;
+        c = *str;
+    }
+    return width;
+}
+
+static void drawRectangle(int x, int y, int width, int height)
 {
     float color[3];
     color[0] = 41;
@@ -53,13 +80,35 @@ static void drawRectangle(void)
     float alpha = 0.95f;
     float inverseAlpha = 1.0f - alpha;
     GameArea gameArea = getGameArea();
-    int size = gameArea.size / 2;
-    int position = gameArea.size / 4;
-    uint8_t *writePointer = gameArea.buffer + (position * 4) + (position * framebuffer.width * 4);
-    int yAdvance = (framebuffer.width - size) * 4;
-    for (int h = 0; h < size; h++)
+    if (x >= gameArea.size)
     {
-        for (int w = 0; w < size; w++)
+        return;
+    }
+    if (y >= gameArea.size)
+    {
+        return;
+    }
+    if (x < 0)
+    {
+        x = 0;
+    }
+    if (y < 0)
+    {
+        y = 0;
+    }
+    if (x + width > gameArea.size)
+    {
+        width = gameArea.size - x;
+    }
+    if (y + height > gameArea.size)
+    {
+        height = gameArea.size - y;
+    }
+    uint8_t *writePointer = gameArea.buffer + (x * 4) + (y * framebuffer.width * 4);
+    int yAdvance = (framebuffer.width - width) * 4;
+    for (int h = 0; h < height; h++)
+    {
+        for (int w = 0; w < width; w++)
         {
             for (int i = 0; i < 3; i++)
             {
@@ -108,35 +157,9 @@ static void drawGlyph(Glyph *glyph, int x, int y)
     }
 }
 
-static void drawString(const char *str)
+static void drawString(const char *str, int x, int y)
 {
-    const char *start = str;
     char c = *str;
-    int width = 0;
-    while (c != 0)
-    {
-        if (c == ' ')
-        {
-            width += 10;
-        }
-        else if (c >= 33 && c <= 126)
-        {
-            Glyph *glyph = &glyphs[c - 33];
-            width += glyph->advance;
-            char next = str[1];
-            if (next >= 33 && next <= 126)
-            {
-                width += glyph->kerning[next - 33];
-            }
-        }
-        str++;
-        c = *str;
-    }
-    GameArea gameArea = getGameArea();
-    int y = (gameArea.size / 4) + 75;
-    int x = (gameArea.size / 2) - (width / 2);
-    str = start;
-    c = *str;
     while (c != 0)
     {
         if (c == ' ')
@@ -411,6 +434,17 @@ static void drawGrid(void)
     }
 }
 
+static void gameOverBox(const char *str)
+{
+    GameArea gameArea = getGameArea();
+    int stringWidth = getStringWidth(str);
+    int stringHeight = fontMetrics.ascent - fontMetrics.descent;
+    int stringX = (gameArea.size / 2) - (stringWidth / 2);
+    int stringY = ((gameArea.size / 2) + fontMetrics.ascent) - (stringHeight / 2);
+    drawRectangle(stringX, stringY - fontMetrics.ascent, stringWidth, stringHeight);
+    drawString(str, stringX, stringY);
+}
+
 void renderFrame(void)
 {
     memset(framebuffer.data, 0, framebuffer.width * framebuffer.height * 4);
@@ -418,8 +452,7 @@ void renderFrame(void)
     drawPieces();
     if (renderString != NULL)
     {
-        drawRectangle();
-        drawString(renderString);
+        gameOverBox(renderString);
     }
     blitToScreen();
 }

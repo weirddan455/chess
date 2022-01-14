@@ -22,6 +22,11 @@ void loadFont(void)
         return;
     }
     float scale = stbtt_ScaleForPixelHeight(&fontInfo, 50);
+    int ascent, descent, lineGap;
+    stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
+    fontMetrics.ascent = ascent * scale;
+    fontMetrics.descent = descent * scale;
+    fontMetrics.lineGap = lineGap * scale;
     int glyphIndices[94];
     for (int i = 0; i < 94; i++)
     {

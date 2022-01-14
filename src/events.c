@@ -64,7 +64,7 @@ void leftClickEvent(int x, int y)
             {
                 if (playerInCheck(BLACK))
                 {
-                    renderString = "Checkmate";
+                    renderString = "White Wins - Checkmate";
                 }
                 else
                 {
@@ -73,7 +73,7 @@ void leftClickEvent(int x, int y)
             }
             else if (gameState.halfMoves >= 100)
             {
-                renderString = "Draw";
+                renderString = "Draw by 50 rule move";
             }
             else
             {
@@ -84,7 +84,7 @@ void leftClickEvent(int x, int y)
                 {
                     if (playerInCheck(WHITE))
                     {
-                        renderString = "Checkmate";
+                        renderString = "Black Wins - Checkmate";
                     }
                     else
                     {
@@ -93,7 +93,7 @@ void leftClickEvent(int x, int y)
                 }
                 else if (gameState.halfMoves >= 100)
                 {
-                    renderString = "Draw";
+                    renderString = "Draw by 50 rule move";
                 }
             }
             selected = false;

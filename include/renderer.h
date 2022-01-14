@@ -30,6 +30,13 @@ typedef struct Glyph
     uint8_t *data;
 } Glyph;
 
+typedef struct FontMetrics
+{
+    int ascent;
+    int descent;
+    int lineGap;
+} FontMetrics;
+
 extern Image framebuffer;
 
 extern Image blackBishop;
@@ -46,6 +53,7 @@ extern Image whiteQueen;
 extern Image whiteRook;
 
 extern Glyph glyphs[94];
+extern FontMetrics fontMetrics;
 
 extern uint8_t highlighted[64];
 extern int numHightlighted;

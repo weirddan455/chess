@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <stdlib.h>
 
 #include "game.h"
@@ -9,6 +8,7 @@ GameState gameState;
 static void copyGameState(GameState *copy)
 {
     copy->turn = gameState.turn;
+    copy->halfMoves = gameState.halfMoves;
     int pieceIndex = 0;
     for (int i = 0; i < 64; i++)
     {
@@ -29,6 +29,14 @@ void movePiece(uint8_t moveTo, uint8_t moveFrom, GameState *state)
 {
     uint8_t destination = moveTo & MOVE_MASK;
     Piece *piece = state->board[moveFrom];
+    if (piece->type == PAWN || state->board[destination] != NULL)
+    {
+        state->halfMoves = 0;
+    }
+    else
+    {
+        state->halfMoves++;
+    }
     state->board[destination] = piece;
     state->board[moveFrom] = NULL;
     piece->previousPosition = moveFrom;
@@ -582,9 +590,31 @@ int getAllLegalMoves(enum PieceOwner owner, uint8_t *moveTo, uint8_t *moveFrom)
     return totalMoves;
 }
 
+bool playerInCheck(enum PieceOwner player)
+{
+    uint8_t king = getKingLocation(player, &gameState);
+    for (uint8_t cell = 0; cell < 64; cell++)
+    {
+        if (gameState.board[cell] != NULL && gameState.board[cell]->owner != player)
+        {
+            uint8_t moves[64];
+            int numMoves = piecePossibleMoves(cell, moves, &gameState);
+            for (int i = 0; i < numMoves; i++)
+            {
+                if ((moves[i] & MOVE_MASK) == king)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 void initGameState(void)
 {
     gameState.turn = 1;
+    gameState.halfMoves = 0;
 
     for (int i = 0; i < 32; i++)
     {
@@ -676,6 +706,11 @@ void initGameState(void)
     gameState.board[13] = &gameState.pieces[13];
     gameState.board[14] = &gameState.pieces[14];
     gameState.board[15] = &gameState.pieces[15];
+
+    for (int i = 16; i < 48; i++)
+    {
+        gameState.board[i] = NULL;
+    }
 
     gameState.board[48] = &gameState.pieces[16];
     gameState.board[49] = &gameState.pieces[17];

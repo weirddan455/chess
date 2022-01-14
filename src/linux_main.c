@@ -66,11 +66,7 @@ static uint8_t handleNextEvent(int *newWidth, int *newHeight)
         {
             if (event.xbutton.button == 1)
             {
-                if (!leftClickEvent(event.xbutton.x, event.xbutton.y))
-                {
-                    puts("Game Over");
-                    return QUIT;
-                }
+                leftClickEvent(event.xbutton.x, event.xbutton.y);
                 return RENDER;
             }
             else if (event.xbutton.button == 3)

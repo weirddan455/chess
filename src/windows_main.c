@@ -82,11 +82,7 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 		}
 		case WM_LBUTTONDOWN:
 		{
-			if (!leftClickEvent(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
-			{
-				OutputDebugStringA("Game Over\r\n");
-				ExitProcess(0);
-			}
+			leftClickEvent(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 			renderFrame();
 			return 0;
 		}

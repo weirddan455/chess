@@ -10,14 +10,20 @@ static uint8_t moveFrom;
 static uint8_t moves[64];
 static int numMoves;
 
-bool leftClickEvent(int x, int y)
+void leftClickEvent(int x, int y)
 {
+    if (renderString != NULL)
+    {
+        renderString = NULL;
+        initGameState();
+        return;
+    }
     GameArea gameArea = getGameArea();
     x -= gameArea.x;
     y -= gameArea.y;
 	if (x < 0 || y < 0 || x >= gameArea.size || y >= gameArea.size)
 	{
-		return true;
+		return;
 	}
 	uint8_t cellX = x / gameArea.gridSize;
 	uint8_t cellY = y / gameArea.gridSize;
@@ -51,20 +57,49 @@ bool leftClickEvent(int x, int y)
         if (moveTo != 255)
         {
             movePiece(moveTo, moveFrom, &gameState);
-            selected = false;
-            uint8_t computerMoveTo[1024];
-            uint8_t computerMoveFrom[1024];
-            int numComputerMoves = getAllLegalMoves(BLACK, computerMoveTo, computerMoveFrom);
+            uint8_t legalMovesTo[1024];
+            uint8_t legalMovesFrom[1024];
+            int numComputerMoves = getAllLegalMoves(BLACK, legalMovesTo, legalMovesFrom);
             if (numComputerMoves <= 0)
             {
-                return false;
+                if (playerInCheck(BLACK))
+                {
+                    renderString = "Checkmate";
+                }
+                else
+                {
+                    renderString = "Stalemate";
+                }
             }
-            uint32_t randomMove = pcgRangedRandom(numComputerMoves);
-            movePiece(computerMoveTo[randomMove], computerMoveFrom[randomMove], &gameState);
+            else if (gameState.halfMoves >= 100)
+            {
+                renderString = "Draw";
+            }
+            else
+            {
+                uint32_t randomMove = pcgRangedRandom(numComputerMoves);
+                movePiece(legalMovesTo[randomMove], legalMovesFrom[randomMove], &gameState);
+                int numPlayerMoves = getAllLegalMoves(WHITE, legalMovesTo, legalMovesFrom);
+                if (numPlayerMoves <= 0)
+                {
+                    if (playerInCheck(WHITE))
+                    {
+                        renderString = "Checkmate";
+                    }
+                    else
+                    {
+                        renderString = "Stalemate";
+                    }
+                }
+                else if (gameState.halfMoves >= 100)
+                {
+                    renderString = "Draw";
+                }
+            }
+            selected = false;
             numHightlighted = 0;
         }
     }
-    return true;
 }
 
 void rightClickEvent(void)

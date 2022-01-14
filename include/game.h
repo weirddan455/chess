@@ -1,6 +1,7 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define MOVE_MASK 63
@@ -34,6 +35,7 @@ typedef struct Piece
 typedef struct GameState
 {
     int turn;
+    int halfMoves; // Resets when a pawn is moved or a piece is captured.  Used for 50 move draw rule.
     Piece pieces[32];
     Piece *board[64];
 } GameState;
@@ -44,5 +46,6 @@ void movePiece(uint8_t moveTo, uint8_t moveFrom, GameState *state);
 int pieceLegalMoves(uint8_t cell, uint8_t *moves);
 void initGameState(void);
 int getAllLegalMoves(enum PieceOwner owner, uint8_t *moveTo, uint8_t *moveFrom);
+bool playerInCheck(enum PieceOwner player);
 
 #endif

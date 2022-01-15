@@ -100,7 +100,7 @@ static bool seedRng(void)
     return true;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     if (!seedRng())
     {
@@ -144,6 +144,8 @@ int main(void)
     loadFont();
     initGameState();
     renderFrame();
+    uint64_t positions = calculatePositions(6, &gameState, WHITE);
+    printf("Positions: %lu\n", positions);
 
     while(true)
     {

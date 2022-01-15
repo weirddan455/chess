@@ -28,9 +28,9 @@ void leftClickEvent(int x, int y)
 	uint8_t cellX = x / gameArea.gridSize;
 	uint8_t cellY = y / gameArea.gridSize;
 	uint8_t cell = (cellY * 8) + cellX;
-	if (gameState.board[cell] != NULL && gameState.board[cell]->owner == WHITE)
+	if ((gameState.board[cell] & PIECE_OWNER_MASK) == WHITE)
     {
-        numMoves = pieceLegalMoves(cell, moves);
+        numMoves = pieceLegalMoves(cell, moves, &gameState);
         if (numMoves > 0)
         {
             selected = true;
@@ -59,7 +59,7 @@ void leftClickEvent(int x, int y)
             movePiece(moveTo, moveFrom, &gameState);
             uint8_t legalMovesTo[1024];
             uint8_t legalMovesFrom[1024];
-            int numComputerMoves = getAllLegalMoves(BLACK, legalMovesTo, legalMovesFrom);
+            int numComputerMoves = getAllLegalMoves(BLACK, legalMovesTo, legalMovesFrom, &gameState);
             if (numComputerMoves <= 0)
             {
                 if (playerInCheck(BLACK))
@@ -79,7 +79,7 @@ void leftClickEvent(int x, int y)
             {
                 uint32_t randomMove = pcgRangedRandom(numComputerMoves);
                 movePiece(legalMovesTo[randomMove], legalMovesFrom[randomMove], &gameState);
-                int numPlayerMoves = getAllLegalMoves(WHITE, legalMovesTo, legalMovesFrom);
+                int numPlayerMoves = getAllLegalMoves(WHITE, legalMovesTo, legalMovesFrom, &gameState);
                 if (numPlayerMoves <= 0)
                 {
                     if (playerInCheck(WHITE))

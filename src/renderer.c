@@ -285,12 +285,12 @@ static void drawPieces(void)
 {
     for (int i = 0; i < 64; i++)
     {
-        if (gameState.board[i] != NULL)
+        if (gameState.board[i] != 0)
         {
             Image image;
-            if (gameState.board[i]->owner == BLACK)
+            if ((gameState.board[i] & PIECE_OWNER_MASK) == BLACK)
             {
-                switch(gameState.board[i]->type)
+                switch(gameState.board[i] & PIECE_TYPE_MASK)
                 {
                     case ROOK:
                         image = blackRook;
@@ -314,7 +314,7 @@ static void drawPieces(void)
             }
             else
             {
-                switch(gameState.board[i]->type)
+                switch(gameState.board[i] & PIECE_TYPE_MASK)
                 {
                     case ROOK:
                         image = whiteRook;

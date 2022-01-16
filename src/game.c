@@ -6,13 +6,14 @@
 
 GameState gameState;
 
-void movePiece(uint8_t moveTo, uint8_t moveFrom, GameState *state)
+void movePiece(uint16_t move, GameState *state)
 {
-    uint8_t destination = moveTo & MOVE_MASK;
+    uint8_t moveTo = move & MOVE_TO_MASK;
+    uint8_t moveFrom = (move & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
     uint8_t piece = state->board[moveFrom];
     uint8_t pieceOwner = piece & PIECE_OWNER_MASK;
     uint8_t pieceType = piece & PIECE_TYPE_MASK;
-    if (pieceType == PAWN || state->board[destination] != 0)
+    if (pieceType == PAWN || state->board[moveTo] != 0)
     {
         state->halfMoves = 0;
     }
@@ -20,54 +21,35 @@ void movePiece(uint8_t moveTo, uint8_t moveFrom, GameState *state)
     {
         state->halfMoves++;
     }
-    if (moveTo & ENPASSANT_MASK)
-    {
-        if (pieceType == BLACK)
-        {
-            state->board[destination - 8] = 0;
-        }
-        else
-        {
-            state->board[destination + 8] = 0;
-        }
-    }
-    else if (moveTo & CASTLE_MASK)
-    {
-        if (destination > moveFrom)
-        {
-            state->board[destination - 1] = state->board[destination + 1];
-            state->board[destination + 1] = 0;
-        }
-        else
-        {
-            state->board[destination + 1] = state->board[destination - 2];
-            state->board[destination - 2] = 0;
-        }
-    }
     state->enPassantSquare = 255;
     if (pieceType == PAWN)
     {
         if (pieceOwner == BLACK)
         {
-            if (destination >= 56)
+            if (moveTo - moveFrom == 16)
             {
-                piece = BLACK | QUEEN;
+                state->enPassantSquare = moveTo - 8;
             }
-            else if (destination - moveFrom == 16)
+            else if (move & CASTLE_ENPASSANT_FLAG)
             {
-                state->enPassantSquare = destination - 8;
+                state->board[moveTo - 8] = 0;
             }
         }
         else
         {
-            if (destination <= 7)
+            if (moveFrom - moveTo == 16)
             {
-                piece = WHITE | QUEEN;
+                state->enPassantSquare = moveTo + 8;
             }
-            else if (moveFrom - destination == 16)
+            else if (move & CASTLE_ENPASSANT_FLAG)
             {
-                state->enPassantSquare = destination + 8;
+                state->board[moveTo + 8] = 0;
             }
+        }
+        uint16_t promotion = move & PAWN_PROMOTE_MASK;
+        if (promotion)
+        {
+            piece = pieceOwner | (promotion >> PAWN_PROMOTE_SHIFT);
         }
     }
     else if (pieceType == KING)
@@ -80,24 +62,37 @@ void movePiece(uint8_t moveTo, uint8_t moveFrom, GameState *state)
         {
             state->castlingAvailablity &= ~(CASTLE_BLACK_KING | CASTLE_BLACK_QUEEN);
         }
+        if (move & CASTLE_ENPASSANT_FLAG)
+        {
+            if (moveTo > moveFrom)
+            {
+                state->board[moveTo - 1] = state->board[moveTo + 1];
+                state->board[moveTo + 1] = 0;
+            }
+            else
+            {
+                state->board[moveTo + 1] = state->board[moveTo - 2];
+                state->board[moveTo - 2] = 0;
+            }
+        }
     }
-    if (destination == 0 || moveFrom == 0)
+    if (moveTo == 0 || moveFrom == 0)
     {
         state->castlingAvailablity &= ~CASTLE_BLACK_QUEEN;
     }
-    if (destination == 7 || moveFrom == 7)
+    if (moveTo == 7 || moveFrom == 7)
     {
         state->castlingAvailablity &= ~CASTLE_BLACK_KING;
     }
-    if (destination == 56 || moveFrom == 56)
+    if (moveTo == 56 || moveFrom == 56)
     {
         state->castlingAvailablity &= ~CASTLE_WHITE_QUEEN;
     }
-    if (destination == 63 || moveFrom == 63)
+    if (moveTo == 63 || moveFrom == 63)
     {
         state->castlingAvailablity &= ~CASTLE_WHITE_KING;
     }
-    state->board[destination] = piece;
+    state->board[moveTo] = piece;
     state->board[moveFrom] = 0;
 }
 
@@ -115,9 +110,10 @@ static uint8_t getKingLocation(uint8_t owner, GameState *state)
     return 0;
 }
 
-static int pawnPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int pawnPossibleMoves(uint8_t cell, uint16_t *moves, GameState *state)
 {
     uint8_t pawnOwner = state->board[cell] & PIECE_OWNER_MASK;
+    uint16_t moveFrom = (uint16_t)cell << MOVE_FROM_SHIFT;
     int numMoves = 0;
     int direction;
     int startingRow;
@@ -131,21 +127,41 @@ static int pawnPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
         direction = -8;
         startingRow = 48;
     }
-    int move = cell + direction;
-    if (move >= 0 && move < 64 && state->board[move] == 0)
+    uint16_t move = cell + direction;
+    if (move < 64 && state->board[move] == 0)
     {
-        moves[numMoves++] = move;
+        if ((pawnOwner == BLACK && move >= 56) || (pawnOwner == WHITE && move <= 7))
+        {
+            moves[numMoves++] = move | moveFrom | PAWN_PROMOTE_BISHOP;
+            moves[numMoves++] = move | moveFrom | PAWN_PROMOTE_QUEEN;
+            moves[numMoves++] = move | moveFrom | PAWN_PROMOTE_KNIGHT;
+            moves[numMoves++] = move | moveFrom | PAWN_PROMOTE_ROOK;
+        }
+        else
+        {
+            moves[numMoves++] = move | moveFrom;
+        }
         if (cell >= startingRow && cell < startingRow + 8)
         {
             move += direction;
-            if (move >= 0 && move < 64 && state->board[move] == 0)
+            if (move < 64 && state->board[move] == 0)
             {
-                moves[numMoves++] = move;
+                if ((pawnOwner == BLACK && move >= 56) || (pawnOwner == WHITE && move <= 7))
+                {
+                    moves[numMoves++] = move | moveFrom | PAWN_PROMOTE_BISHOP;
+                    moves[numMoves++] = move | moveFrom | PAWN_PROMOTE_QUEEN;
+                    moves[numMoves++] = move | moveFrom | PAWN_PROMOTE_KNIGHT;
+                    moves[numMoves++] = move | moveFrom | PAWN_PROMOTE_ROOK;
+                }
+                else
+                {
+                    moves[numMoves++] = move | moveFrom;
+                }
             }
         }
     }
     uint8_t col = cell % 8;
-    int captureMoves[2];
+    uint16_t captureMoves[2];
     int numCaptureMoves = 0;
     if (pawnOwner == BLACK)
     {
@@ -171,27 +187,38 @@ static int pawnPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     }
     for (int i = 0; i < numCaptureMoves; i++)
     {
-        if (captureMoves[i] >= 0 && captureMoves[i] < 64)
+        if (captureMoves[i] < 64)
         {
             if (state->board[captureMoves[i]] != 0 && (state->board[captureMoves[i]] & PIECE_OWNER_MASK) != pawnOwner)
             {
-                moves[numMoves++] = captureMoves[i];
+                if ((pawnOwner == BLACK && move >= 56) || (pawnOwner == WHITE && move <= 7))
+                {
+                    moves[numMoves++] = captureMoves[i] | moveFrom | PAWN_PROMOTE_BISHOP;
+                    moves[numMoves++] = captureMoves[i] | moveFrom | PAWN_PROMOTE_QUEEN;
+                    moves[numMoves++] = captureMoves[i] | moveFrom | PAWN_PROMOTE_KNIGHT;
+                    moves[numMoves++] = captureMoves[i] | moveFrom | PAWN_PROMOTE_ROOK;
+                }
+                else
+                {
+                    moves[numMoves++] = captureMoves[i] | moveFrom;
+                }
             }
             // Check for en passant
             else if (captureMoves[i] == state->enPassantSquare)
             {
-                moves[numMoves++] = captureMoves[i] | ENPASSANT_MASK;
+                moves[numMoves++] = captureMoves[i] | moveFrom | CASTLE_ENPASSANT_FLAG;
             }
         }
     }
     return numMoves;
 }
 
-static int knightPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int knightPossibleMoves(uint8_t cell, uint16_t *moves, GameState *state)
 {
     uint8_t knightOwner = state->board[cell] & PIECE_OWNER_MASK;
+    uint16_t moveFrom = (uint16_t)cell << MOVE_FROM_SHIFT;
     uint8_t col = cell % 8;
-    int possibleMoves[8];
+    uint16_t possibleMoves[8];
     int numPossibleMoves = 0;
     if (col < 7)
     {
@@ -216,35 +243,36 @@ static int knightPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     int numMoves = 0;
     for (int i = 0; i < numPossibleMoves; i++)
     {
-        if (possibleMoves[i] >= 0 && possibleMoves[i] < 64 && (state->board[possibleMoves[i]] & PIECE_OWNER_MASK) != knightOwner)
+        if (possibleMoves[i] < 64 && (state->board[possibleMoves[i]] & PIECE_OWNER_MASK) != knightOwner)
         {
-            moves[numMoves++] = possibleMoves[i];
+            moves[numMoves++] = possibleMoves[i] | moveFrom;
         }
     }
     return numMoves;
 }
 
-static int bishopPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int bishopPossibleMoves(uint8_t cell, uint16_t *moves, GameState *state)
 {
     uint8_t bishopOwner = state->board[cell] & PIECE_OWNER_MASK;
+    uint16_t moveFrom = (uint16_t)cell << MOVE_FROM_SHIFT;
     uint8_t col = cell % 8;
     uint8_t row = cell / 8;
     uint8_t x = col;
     uint8_t y = row;
     int numMoves = 0;
     // Up left
-    uint8_t move = cell - 9;
+    uint16_t move = cell - 9;
     while (x > 0 && y > 0)
     {
         if (state->board[move] != 0)
         {
             if ((state->board[move] & PIECE_OWNER_MASK) != bishopOwner)
             {
-                moves[numMoves++] = move;
+                moves[numMoves++] = move | moveFrom;
             }
             break;
         }
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
         move -= 9;
         x--;
         y--;
@@ -259,11 +287,11 @@ static int bishopPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
         {
             if ((state->board[move] & PIECE_OWNER_MASK) != bishopOwner)
             {
-                moves[numMoves++] = move;
+                moves[numMoves++] = move | moveFrom;
             }
             break;
         }
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
         move += 7;
         x--;
         y++;
@@ -278,11 +306,11 @@ static int bishopPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
         {
             if ((state->board[move] & PIECE_OWNER_MASK) != bishopOwner)
             {
-                moves[numMoves++] = move;
+                moves[numMoves++] = move | moveFrom;
             }
             break;
         }
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
         move -= 7;
         x++;
         y--;
@@ -297,11 +325,11 @@ static int bishopPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
         {
             if ((state->board[move] & PIECE_OWNER_MASK) != bishopOwner)
             {
-                moves[numMoves++] = move;
+                moves[numMoves++] = move | moveFrom;
             }
             break;
         }
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
         move += 9;
         x++;
         y++;
@@ -309,25 +337,26 @@ static int bishopPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     return numMoves;
 }
 
-static int rookPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int rookPossibleMoves(uint8_t cell, uint16_t *moves, GameState *state)
 {
     uint8_t rookOwner = state->board[cell] & PIECE_OWNER_MASK;
+    uint16_t moveFrom = (uint16_t)cell << MOVE_FROM_SHIFT;
     uint8_t col = cell % 8;
     uint8_t row = cell / 8;
     int numMoves = 0;
     uint8_t x = col;
-    uint8_t move = cell - 1;
+    uint16_t move = cell - 1;
     while (x > 0)
     {
         if (state->board[move] != 0)
         {
             if ((state->board[move] & PIECE_OWNER_MASK) != rookOwner)
             {
-                moves[numMoves++] = move;
+                moves[numMoves++] = move | moveFrom;
             }
             break;
         }
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
         move--;
         x--;
     }
@@ -339,11 +368,11 @@ static int rookPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
         {
             if ((state->board[move] & PIECE_OWNER_MASK) != rookOwner)
             {
-                moves[numMoves++] = move;
+                moves[numMoves++] = move | moveFrom;
             }
             break;
         }
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
         move++;
         x++;
     }
@@ -355,11 +384,11 @@ static int rookPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
         {
             if ((state->board[move] & PIECE_OWNER_MASK) != rookOwner)
             {
-                moves[numMoves++] = move;
+                moves[numMoves++] = move | moveFrom;
             }
             break;
         }
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
         move -= 8;
         y--;
     }
@@ -371,26 +400,26 @@ static int rookPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
         {
             if ((state->board[move] & PIECE_OWNER_MASK) != rookOwner)
             {
-                moves[numMoves++] = move;
+                moves[numMoves++] = move | moveFrom;
             }
             break;
         }
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
         move += 8;
         y++;
     }
     return numMoves;
 }
 
-static int queenPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int queenPossibleMoves(uint8_t cell, uint16_t *moves, GameState *state)
 {
     int numMoves = bishopPossibleMoves(cell, moves, state);
     return numMoves + rookPossibleMoves(cell, moves + numMoves, state);
 }
 
-static int getCastlingMoves(uint8_t kingOwner, uint8_t *moves, GameState *state)
+static int getCastlingMoves(uint8_t kingOwner, uint16_t moveFrom, uint16_t *moves, GameState *state)
 {
-    uint8_t backRow;
+    uint16_t backRow;
     bool queenSide;
     bool kingSide;
     if (kingOwner == BLACK)
@@ -458,65 +487,66 @@ static int getCastlingMoves(uint8_t kingOwner, uint8_t *moves, GameState *state)
     int numMoves = 0;
     if (queenSide)
     {
-        moves[numMoves++] = (backRow + 2) | CASTLE_MASK;
+        moves[numMoves++] = (backRow + 2) | moveFrom | CASTLE_ENPASSANT_FLAG;
     }
     if (kingSide)
     {
-        moves[numMoves++] = (backRow + 6) | CASTLE_MASK;
+        moves[numMoves++] = (backRow + 6) | moveFrom | CASTLE_ENPASSANT_FLAG;
     }
     return numMoves;
 }
 
-static int kingPossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int kingPossibleMoves(uint8_t cell, uint16_t *moves, GameState *state)
 {
     uint8_t kingOwner = state->board[cell] & PIECE_OWNER_MASK;
+    uint16_t moveFrom = (uint16_t)cell << MOVE_FROM_SHIFT;
     uint8_t col = cell % 8;
     uint8_t row = cell / 8;
     int numMoves = 0;
-    uint8_t move = cell - 1;
+    uint16_t move = cell - 1;
     if (col > 0 && (state->board[move] & PIECE_OWNER_MASK) != kingOwner)
     {
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
     }
     move = cell + 1;
     if (col < 7 && (state->board[move] & PIECE_OWNER_MASK) != kingOwner)
     {
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
     }
     move = cell - 8;
     if (row > 0 && (state->board[move] & PIECE_OWNER_MASK) != kingOwner)
     {
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
     }
     move = cell + 8;
     if (row < 7 && (state->board[move] & PIECE_OWNER_MASK) != kingOwner)
     {
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
     }
     move = cell - 9;
     if (col > 0 && row > 0 && (state->board[move] & PIECE_OWNER_MASK) != kingOwner)
     {
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
     }
     move = cell + 7;
     if (col > 0 && row < 7 && (state->board[move] & PIECE_OWNER_MASK) != kingOwner)
     {
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
     }
     move = cell - 7;
     if (col < 7 && row > 0 && (state->board[move] & PIECE_OWNER_MASK) != kingOwner)
     {
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
     }
     move = cell + 9;
     if (col < 7 && row < 7 && (state->board[move] & PIECE_OWNER_MASK) != kingOwner)
     {
-        moves[numMoves++] = move;
+        moves[numMoves++] = move | moveFrom;
     }
-    return numMoves + getCastlingMoves(kingOwner, moves + numMoves, state);
+    return numMoves + getCastlingMoves(kingOwner, moveFrom, moves + numMoves, state);
 }
 
-static int piecePossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
+static int piecePossibleMoves(uint8_t cell, uint16_t *moves, GameState *state)
 {
     switch(state->board[cell] & PIECE_TYPE_MASK)
     {
@@ -536,9 +566,10 @@ static int piecePossibleMoves(uint8_t cell, uint8_t *moves, GameState *state)
     return 0;
 }
 
-int pieceLegalMoves(uint8_t cell, uint8_t *moves, GameState *state)
+int pieceLegalMoves(uint8_t cell, uint16_t *moves, GameState *state)
 {
     uint8_t owner = state->board[cell] & PIECE_OWNER_MASK;
+    uint8_t pieceType = state->board[cell] & PIECE_TYPE_MASK;
     uint8_t opponent;
     if (owner == BLACK)
     {
@@ -548,26 +579,26 @@ int pieceLegalMoves(uint8_t cell, uint8_t *moves, GameState *state)
     {
         opponent = BLACK;
     }
-    uint8_t possibleMoves[64];
+    uint16_t possibleMoves[64];
     int numPossibleMoves = piecePossibleMoves(cell, possibleMoves, state);
     int numLegalMoves = 0;
     for (int i = 0; i < numPossibleMoves; i++)
     {
         bool legalMove = true;
-        if (possibleMoves[i] & CASTLE_MASK)
+        if (pieceType == KING && possibleMoves[i] & CASTLE_ENPASSANT_FLAG)
         {
             uint8_t backRow = owner == BLACK ? 0 : 56;
             uint8_t king = backRow + 4;
-            bool kingSide = (possibleMoves[i] & MOVE_MASK) > cell;
+            bool kingSide = (possibleMoves[i] & MOVE_TO_MASK) > cell;
             for (int j = 0; j < 64; j++)
             {
                 if ((state->board[j] & PIECE_OWNER_MASK) == opponent)
                 {
-                    uint8_t opponentMoves[64];
+                    uint16_t opponentMoves[64];
                     int numOpponentMoves = piecePossibleMoves(j, opponentMoves, state);
                     for (int k = 0; k < numOpponentMoves; k++)
                     {
-                        uint8_t move = opponentMoves[k] & MOVE_MASK;
+                        uint8_t move = opponentMoves[k] & MOVE_TO_MASK;
                         if (move == king)
                         {
                             legalMove = false;
@@ -600,17 +631,17 @@ int pieceLegalMoves(uint8_t cell, uint8_t *moves, GameState *state)
         else
         {
             GameState copyState = *state;
-            movePiece(possibleMoves[i], cell, &copyState);
+            movePiece(possibleMoves[i], &copyState);
             uint8_t king = getKingLocation(owner, &copyState);
             for (int j = 0; j < 64; j++)
             {
                 if ((copyState.board[j] & PIECE_OWNER_MASK) == opponent)
                 {
-                    uint8_t opponentMoves[64];
+                    uint16_t opponentMoves[64];
                     int numOpponentMoves = piecePossibleMoves(j, opponentMoves, &copyState);
                     for (int k = 0; k < numOpponentMoves; k++)
                     {
-                        if ((opponentMoves[k] & MOVE_MASK) == king)
+                        if ((opponentMoves[k] & MOVE_TO_MASK) == king)
                         {
                             legalMove = false;
                             break;
@@ -631,18 +662,14 @@ int pieceLegalMoves(uint8_t cell, uint8_t *moves, GameState *state)
     return numLegalMoves;
 }
 
-int getAllLegalMoves(uint8_t owner, uint8_t *moveTo, uint8_t *moveFrom, GameState *state)
+int getAllLegalMoves(uint8_t owner, uint16_t *moves, GameState *state)
 {
     int totalMoves = 0;
     for (uint8_t cell = 0; cell < 64; cell++)
     {
         if ((state->board[cell] & PIECE_OWNER_MASK) == owner)
         {
-            int numMoves = pieceLegalMoves(cell, moveTo + totalMoves, state);
-            for (int i = 0; i < numMoves; i++)
-            {
-                moveFrom[totalMoves + i] = cell;
-            }
+            int numMoves = pieceLegalMoves(cell, moves + totalMoves, state);
             totalMoves += numMoves;
         }
     }
@@ -665,11 +692,11 @@ bool playerInCheck(uint8_t player)
     {
         if ((gameState.board[cell] & PIECE_OWNER_MASK) == opponent)
         {
-            uint8_t moves[64];
+            uint16_t moves[64];
             int numMoves = piecePossibleMoves(cell, moves, &gameState);
             for (int i = 0; i < numMoves; i++)
             {
-                if ((moves[i] & MOVE_MASK) == king)
+                if ((moves[i] & MOVE_TO_MASK) == king)
                 {
                     return true;
                 }
@@ -695,19 +722,18 @@ uint64_t calculatePositions(int depth, GameState *state, uint8_t player)
         opponent = BLACK;
     }
     uint64_t totalPositions = 0;
-    uint8_t moveTo[1024];
-    uint8_t moveFrom[1024];
-    int numMoves = getAllLegalMoves(player, moveTo, moveFrom, state);
+    uint16_t moves[1024];
+    int numMoves = getAllLegalMoves(player, moves, state);
     for (int i = 0; i < numMoves; i++)
     {
         GameState copyState = *state;
-        movePiece(moveTo[i], moveFrom[i], &copyState);
+        movePiece(moves[i], &copyState);
         uint64_t positions = calculatePositions(depth - 1, &copyState, opponent);
         totalPositions += positions;
-        if (depth == 1)
+        if (depth == 5)
         {
-            uint8_t fromCell = moveFrom[i] & MOVE_MASK;
-            uint8_t toCell = moveTo[i] & MOVE_MASK;
+            uint8_t fromCell = moves[i] & MOVE_TO_MASK;
+            uint8_t toCell = (moves[i] & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
             char string[5];
             string[0] = 'a' + (fromCell % 8);
             string[1] = '8' - (fromCell / 8);

@@ -6,8 +6,7 @@
 #include <stddef.h>
 
 static bool selected;
-static uint8_t moveFrom;
-static uint8_t moves[64];
+static uint16_t moves[64];
 static int numMoves;
 
 void leftClickEvent(int x, int y)
@@ -34,10 +33,9 @@ void leftClickEvent(int x, int y)
         if (numMoves > 0)
         {
             selected = true;
-            moveFrom = cell;
             for (int i = 0; i < numMoves; i++)
             {
-                highlighted[i] = moves[i] & MOVE_MASK;
+                highlighted[i] = moves[i] & MOVE_TO_MASK;
             }
             highlighted[numMoves] = cell;
             numHightlighted = numMoves + 1;
@@ -45,21 +43,22 @@ void leftClickEvent(int x, int y)
     }
     else if (selected)
     {
-        uint8_t moveTo = 255;
+        uint16_t move;
+        bool validMove = false;
         for (int i = 0; i < numMoves; i++)
         {
-            if ((moves[i] & MOVE_MASK) == cell)
+            if ((moves[i] & MOVE_TO_MASK) == cell)
             {
-                moveTo = moves[i];
+                move = moves[i];
+                validMove = true;
                 break;
             }
         }
-        if (moveTo != 255)
+        if (validMove)
         {
-            movePiece(moveTo, moveFrom, &gameState);
-            uint8_t legalMovesTo[1024];
-            uint8_t legalMovesFrom[1024];
-            int numComputerMoves = getAllLegalMoves(BLACK, legalMovesTo, legalMovesFrom, &gameState);
+            movePiece(move, &gameState);
+            uint16_t legalMoves[1024];
+            int numComputerMoves = getAllLegalMoves(BLACK, legalMoves, &gameState);
             if (numComputerMoves <= 0)
             {
                 if (playerInCheck(BLACK))
@@ -78,8 +77,8 @@ void leftClickEvent(int x, int y)
             else
             {
                 uint32_t randomMove = pcgRangedRandom(numComputerMoves);
-                movePiece(legalMovesTo[randomMove], legalMovesFrom[randomMove], &gameState);
-                int numPlayerMoves = getAllLegalMoves(WHITE, legalMovesTo, legalMovesFrom, &gameState);
+                movePiece(legalMoves[randomMove], &gameState);
+                int numPlayerMoves = getAllLegalMoves(WHITE, legalMoves, &gameState);
                 if (numPlayerMoves <= 0)
                 {
                     if (playerInCheck(WHITE))

@@ -704,7 +704,7 @@ uint64_t calculatePositions(int depth, GameState *state, uint8_t player)
         movePiece(moveTo[i], moveFrom[i], &copyState);
         uint64_t positions = calculatePositions(depth - 1, &copyState, opponent);
         totalPositions += positions;
-        if (depth == 6)
+        if (depth == 1)
         {
             uint8_t fromCell = moveFrom[i] & MOVE_MASK;
             uint8_t toCell = moveTo[i] & MOVE_MASK;
@@ -720,11 +720,134 @@ uint64_t calculatePositions(int depth, GameState *state, uint8_t player)
     return totalPositions;
 }
 
+void loadFenString(const char *str)
+{
+    char c = *str;
+    int boardIndex = 0;
+    while (boardIndex < 64)
+    {
+        do
+        {
+            if (c == 'p')
+            {
+                gameState.board[boardIndex++] = BLACK | PAWN;
+            }
+            else if (c == 'n')
+            {
+                gameState.board[boardIndex++] = BLACK | KNIGHT;
+            }
+            else if (c == 'b')
+            {
+                gameState.board[boardIndex++] = BLACK | BISHOP;
+            }
+            else if (c == 'r')
+            {
+                gameState.board[boardIndex++] = BLACK | ROOK;
+            }
+            else if (c == 'q')
+            {
+                gameState.board[boardIndex++] = BLACK | QUEEN;
+            }
+            else if (c == 'k')
+            {
+                gameState.board[boardIndex++] = BLACK | KING;
+            }
+            else if (c == 'P')
+            {
+                gameState.board[boardIndex++] = WHITE | PAWN;
+            }
+            else if (c == 'N')
+            {
+                gameState.board[boardIndex++] = WHITE | KNIGHT;
+            }
+            else if (c == 'B')
+            {
+                gameState.board[boardIndex++] = WHITE | BISHOP;
+            }
+            else if (c == 'R')
+            {
+                gameState.board[boardIndex++] = WHITE | ROOK;
+            }
+            else if (c == 'Q')
+            {
+                gameState.board[boardIndex++] = WHITE | QUEEN;
+            }
+            else if (c == 'K')
+            {
+                gameState.board[boardIndex++] = WHITE | KING;
+            }
+            else if (c >= '1' && c <= '8')
+            {
+                boardIndex += c - 48;
+            }
+            str++;
+            c = *str;
+        } while (boardIndex % 8 != 0);
+        str++;
+        c = *str;
+    }
+    if (c == 'w')
+    {
+        gameState.playerToMove = WHITE;
+    }
+    else
+    {
+        gameState.playerToMove = BLACK;
+    }
+    str += 2;
+    c = *str;
+    gameState.castlingAvailablity = 0;
+    while (c != ' ')
+    {
+        if (c == 'K')
+        {
+            gameState.castlingAvailablity |= CASTLE_WHITE_KING;
+        }
+        else if (c == 'Q')
+        {
+            gameState.castlingAvailablity |= CASTLE_WHITE_QUEEN;
+        }
+        else if (c == 'k')
+        {
+            gameState.castlingAvailablity |= CASTLE_BLACK_KING;
+        }
+        else if (c == 'q')
+        {
+            gameState.castlingAvailablity |= CASTLE_BLACK_QUEEN;
+        }
+        str++;
+        c = *str;
+    }
+    str++;
+    c = *str;
+    gameState.enPassantSquare = 0;
+    if (c != '-')
+    {
+        gameState.enPassantSquare += c - 97;
+        str++;
+        c = *str;
+        gameState.enPassantSquare += 56 - ((c - 49) * 8);
+    }
+    str += 2;
+    c = *str;
+    char halfMoveString[8];
+    int i = 0;
+    while (c != ' ')
+    {
+        halfMoveString[i++] = c;
+        str++;
+        c = *str;
+    }
+    halfMoveString[i] = 0;
+    gameState.halfMoves = atoi(halfMoveString);
+}
+
 void initGameState(void)
 {
     gameState.halfMoves = 0;
     gameState.enPassantSquare = 255;
     gameState.castlingAvailablity = 255;
+    gameState.playerToMove = WHITE;
 
     gameState.board[0] = BLACK | ROOK;
     gameState.board[1] = BLACK | KNIGHT;

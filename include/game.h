@@ -32,6 +32,7 @@
 typedef struct GameState
 {
     int halfMoves; // Resets when a pawn is moved or a piece is captured.  Used for 50 move draw rule.
+    uint8_t playerToMove;
     uint8_t enPassantSquare;
     uint8_t castlingAvailablity;
     uint8_t board[64];
@@ -45,5 +46,6 @@ void initGameState(void);
 int getAllLegalMoves(uint8_t owner, uint8_t *moveTo, uint8_t *moveFrom, GameState *state);
 bool playerInCheck(uint8_t player);
 uint64_t calculatePositions(int depth, GameState *state, uint8_t player);
+void loadFenString(const char *str);
 
 #endif

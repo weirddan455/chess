@@ -142,9 +142,10 @@ int main(int argc, char **argv)
 
     loadImages();
     loadFont();
-    initGameState();
+    //initGameState();
+    loadFenString("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
     renderFrame();
-    uint64_t positions = calculatePositions(6, &gameState, WHITE);
+    uint64_t positions = calculatePositions(1, &gameState, gameState.playerToMove);
     printf("Positions: %lu\n", positions);
 
     while(true)

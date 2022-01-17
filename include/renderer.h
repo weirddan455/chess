@@ -57,7 +57,8 @@ extern FontMetrics fontMetrics;
 
 extern uint8_t highlighted[64];
 extern int numHightlighted;
-extern char *renderString;
+extern const char *gameOverString;
+extern uint8_t pawnPromoteCell;
 
 GameArea getGameArea(void);
 void renderFrame(void);

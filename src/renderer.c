@@ -24,7 +24,8 @@ FontMetrics fontMetrics;
 
 uint8_t highlighted[64];
 int numHightlighted;
-char *renderString;
+const char *gameOverString;
+uint8_t pawnPromoteCell = 255;
 
 GameArea getGameArea(void)
 {
@@ -71,7 +72,33 @@ static int getStringWidth(const char *str)
     return width;
 }
 
-static void drawRectangle(int x, int y, int width, int height)
+static void drawPromoteRectange(void)
+{
+    uint8_t color[3];
+    color[0] = 11;
+    color[1] = 11;
+    color[2] = 163;
+    GameArea gameArea = getGameArea();
+    uint8_t *writePointer = gameArea.buffer + (gameArea.gridSize * 2 * 4) + (gameArea.gridSize * framebuffer.width * 4);
+    int width = gameArea.gridSize * 4;
+    int height = gameArea.gridSize;
+    int yAdvance = (framebuffer.width - width) * 4;
+    for (int h = 0; h < height; h++)
+    {
+        for (int w = 0; w < width; w++)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                *writePointer = color[i];
+                writePointer++;
+            }
+            writePointer++;
+        }
+        writePointer += yAdvance;
+    }
+}
+
+static void drawTextRectangle(int x, int y, int width, int height)
 {
     float color[3];
     color[0] = 41;
@@ -441,8 +468,17 @@ static void gameOverBox(const char *str)
     int stringHeight = fontMetrics.ascent - fontMetrics.descent;
     int stringX = (gameArea.size / 2) - (stringWidth / 2);
     int stringY = ((gameArea.size / 2) + fontMetrics.ascent) - (stringHeight / 2);
-    drawRectangle(stringX, stringY - fontMetrics.ascent, stringWidth, stringHeight);
+    drawTextRectangle(stringX, stringY - fontMetrics.ascent, stringWidth, stringHeight);
     drawString(str, stringX, stringY);
+}
+
+static void pawnPromoteBox(void)
+{
+    drawPromoteRectange();
+    scaleImage(whiteQueen, 10);
+    scaleImage(whiteBishop, 11);
+    scaleImage(whiteKnight, 12);
+    scaleImage(whiteRook, 13);
 }
 
 void renderFrame(void)
@@ -450,9 +486,13 @@ void renderFrame(void)
     memset(framebuffer.data, 0, framebuffer.width * framebuffer.height * 4);
     drawGrid();
     drawPieces();
-    if (renderString != NULL)
+    if (gameOverString != NULL)
     {
-        gameOverBox(renderString);
+        gameOverBox(gameOverString);
+    }
+    else if (pawnPromoteCell != 255)
+    {
+        pawnPromoteBox();
     }
     blitToScreen();
 }

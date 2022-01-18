@@ -1,52 +1,44 @@
 #include "events.h"
 #include "game.h"
 #include "renderer.h"
-#include "pcgrandom.h"
 
 #include <stddef.h>
 
 static uint16_t moves[64];
 static int numMoves;
 
-static void computerMove(void)
+static void makeComputerMove(void)
 {
-    uint16_t legalMoves[1024];
-    int numComputerMoves = getAllLegalMoves(BLACK, legalMoves, &gameState);
-    if (numComputerMoves <= 0)
+    enum GameEnd end = checkGameEnd(&gameState, BLACK);
+    if (end == CHECKMATE)
     {
-        if (playerInCheck(BLACK))
-        {
-            gameOverString = "White Wins - Checkmate";
-        }
-        else
-        {
-            gameOverString = "Stalemate";
-        }
+        gameOverString = "White Wins - Checkmate";
+        return;
     }
-    else if (gameState.halfMoves >= 100)
+    else if (end == STALEMATE)
+    {
+        gameOverString = "Stalemate";
+        return;
+    }
+    else if (end == DRAW_50_MOVE)
     {
         gameOverString = "Draw by 50 rule move";
+        return;
     }
-    else
+    uint16_t move = getComputerMove(BLACK);
+    movePiece(move, &gameState);
+    end = checkGameEnd(&gameState, WHITE);
+    if (end == CHECKMATE)
     {
-        uint32_t randomMove = pcgRangedRandom(numComputerMoves);
-        movePiece(legalMoves[randomMove], &gameState);
-        int numPlayerMoves = getAllLegalMoves(WHITE, legalMoves, &gameState);
-        if (numPlayerMoves <= 0)
-        {
-            if (playerInCheck(WHITE))
-            {
-                gameOverString = "Black Wins - Checkmate";
-            }
-            else
-            {
-                gameOverString = "Stalemate";
-            }
-        }
-        else if (gameState.halfMoves >= 100)
-        {
-            gameOverString = "Draw by 50 rule move";
-        }
+        gameOverString = "Black Wins - Checkmate";
+    }
+    else if (end == STALEMATE)
+    {
+        gameOverString = "Stalemate";
+    }
+    else if (end == DRAW_50_MOVE)
+    {
+        gameOverString = "Draw by 50 rule move";
     }
 }
 
@@ -99,7 +91,7 @@ void leftClickEvent(int x, int y)
         }
         if (pawnPromoteCell == 255)
         {
-            computerMove();
+            makeComputerMove();
         }
     }
 	else if ((gameState.board[cell] & PIECE_OWNER_MASK) == WHITE)
@@ -139,7 +131,7 @@ void leftClickEvent(int x, int y)
             else
             {
                 movePiece(move, &gameState);
-                computerMove();
+                makeComputerMove();
             }
         }
     }

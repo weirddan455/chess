@@ -45,6 +45,11 @@ typedef struct GameState
     uint8_t board[64];
 } GameState;
 
+enum GameEnd
+{
+    GAME_NOT_OVER, CHECKMATE, STALEMATE, DRAW_50_MOVE
+};
+
 extern GameState gameState;
 
 void movePiece(uint16_t move, GameState *state);
@@ -54,5 +59,7 @@ int getAllLegalMoves(uint8_t owner, uint16_t *moves, GameState *state);
 bool playerInCheck(uint8_t player);
 uint64_t calculatePositions(int depth, GameState *state, uint8_t player);
 void loadFenString(const char *str);
+uint16_t getComputerMove(uint8_t player);
+enum GameEnd checkGameEnd(GameState *state, uint8_t player);
 
 #endif

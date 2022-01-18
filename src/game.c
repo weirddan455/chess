@@ -4,6 +4,15 @@
 #include "game.h"
 #include "platform.h"
 
+#define CHECKMATE_EVALUATION -9001
+#define STALEMATE_EVALUATION 0
+
+typedef struct MoveEvaluation
+{
+    uint16_t move;
+    int evaluation;
+} MoveEvaluation;
+
 GameState gameState;
 
 void movePiece(uint16_t move, GameState *state)
@@ -744,6 +753,155 @@ uint64_t calculatePositions(int depth, GameState *state, uint8_t player)
         }
     }
     return totalPositions;
+}
+
+enum GameEnd checkGameEnd(GameState *state, uint8_t player)
+{
+    uint16_t moves[1024];
+    int numMoves = getAllLegalMoves(player, moves, state);
+    if (numMoves > 0)
+    {
+        if (state->halfMoves >= 100)
+        {
+            return DRAW_50_MOVE;
+        }
+        return GAME_NOT_OVER;
+    }
+    if (playerInCheck(player))
+    {
+        return CHECKMATE;
+    }
+    return STALEMATE;
+}
+
+static int AIEvaluate(GameState *state, uint8_t player)
+{
+    enum GameEnd end = checkGameEnd(state, player);
+    if (end == CHECKMATE)
+    {
+        return CHECKMATE_EVALUATION;
+    }
+    if (end == STALEMATE)
+    {
+        return STALEMATE_EVALUATION;
+    }
+    int evaluation = 0;
+    for (int i = 0; i < 64; i++)
+    {
+        uint8_t pieceType = state->board[i] & PIECE_TYPE_MASK;
+        uint8_t pieceOwner = state->board[i] & PIECE_OWNER_MASK;
+        switch (pieceType)
+        {
+            case PAWN:
+            {
+                if (pieceOwner == player)
+                {
+                    evaluation++;
+                }
+                else
+                {
+                    evaluation--;
+                }
+                break;
+            }
+            case BISHOP:
+            case KNIGHT:
+            {
+                if (pieceOwner == player)
+                {
+                    evaluation += 3;
+                }
+                else
+                {
+                    evaluation -= 3;
+                }
+                break;
+            }
+            case ROOK:
+            {
+                if (pieceOwner == player)
+                {
+                    evaluation += 5;
+                }
+                else
+                {
+                    evaluation -= 5;
+                }
+                break;
+            }
+            case QUEEN:
+            {
+                if (pieceOwner == player)
+                {
+                    evaluation += 9;
+                }
+                else
+                {
+                    evaluation -= 9;
+                }
+                break;
+            }
+        }
+    }
+    return evaluation;
+}
+
+static MoveEvaluation AISearch(int depth, GameState *state, uint8_t player)
+{
+    MoveEvaluation bestMove;
+    bestMove.move = 0;
+    if (depth == 0)
+    {
+        bestMove.evaluation = AIEvaluate(state, player);
+        return bestMove;
+    }
+    uint8_t opponent;
+    if (player == BLACK)
+    {
+        opponent = WHITE;
+    }
+    else
+    {
+        opponent = BLACK;
+    }
+    uint16_t moves[1024];
+    int numMoves = getAllLegalMoves(player, moves, state);
+    if (numMoves <= 0)
+    {
+        if (playerInCheck(player))
+        {
+            bestMove.evaluation = CHECKMATE_EVALUATION;
+        }
+        else
+        {
+            bestMove.evaluation = STALEMATE_EVALUATION;
+        }
+        return bestMove;
+    }
+    bestMove.evaluation = CHECKMATE_EVALUATION;
+    for (int i = 0; i < numMoves; i++)
+    {
+        GameState copyState = *state;
+        movePiece(moves[i], &copyState);
+        MoveEvaluation newEval = AISearch(depth - 1, &copyState, opponent);
+        newEval.evaluation = -newEval.evaluation;
+        if (newEval.evaluation >= bestMove.evaluation)
+        {
+            bestMove.move = moves[i];
+            bestMove.evaluation = newEval.evaluation;
+        }
+    }
+    return bestMove;
+}
+
+uint16_t getComputerMove(uint8_t player)
+{
+    MoveEvaluation moveEval = AISearch(4, &gameState, player);
+    if (moveEval.move == 0)
+    {
+        debugLog("getComputerMove: Did not find a move (shouldn't happen)");
+    }
+    return moveEval.move;
 }
 
 void loadFenString(const char *str)

@@ -118,9 +118,9 @@ static void AIVsAILoop(void)
                 return;
             }
         }
-        uint16_t move = getComputerMove(gameState.playerToMove);
+        uint16_t move = getComputerMove();
         movePiece(move, &gameState);
-        enum GameEnd end = checkGameEnd(&gameState, gameState.playerToMove);
+        enum GameEnd end = checkGameEnd(&gameState);
         if (end == CHECKMATE)
         {
             if (gameState.playerToMove == WHITE)

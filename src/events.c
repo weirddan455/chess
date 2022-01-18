@@ -9,7 +9,7 @@ static int numMoves;
 
 static void makeComputerMove(void)
 {
-    enum GameEnd end = checkGameEnd(&gameState, BLACK);
+    enum GameEnd end = checkGameEnd(&gameState);
     if (end == CHECKMATE)
     {
         gameOverString = "White Wins - Checkmate";
@@ -25,9 +25,9 @@ static void makeComputerMove(void)
         gameOverString = "Draw by 50 rule move";
         return;
     }
-    uint16_t move = getComputerMove(BLACK);
+    uint16_t move = getComputerMove();
     movePiece(move, &gameState);
-    end = checkGameEnd(&gameState, WHITE);
+    end = checkGameEnd(&gameState);
     if (end == CHECKMATE)
     {
         gameOverString = "Black Wins - Checkmate";

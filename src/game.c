@@ -2,16 +2,11 @@
 #include <stdio.h>
 
 #include "game.h"
+#include "pcgrandom.h"
 #include "platform.h"
 
 #define CHECKMATE_EVALUATION -9001
 #define STALEMATE_EVALUATION 0
-
-typedef struct MoveEvaluation
-{
-    uint16_t move;
-    int evaluation;
-} MoveEvaluation;
 
 GameState gameState;
 
@@ -679,12 +674,13 @@ int pieceLegalMoves(uint8_t cell, uint16_t *moves, GameState *state)
     return numLegalMoves;
 }
 
-int getAllLegalMoves(uint8_t owner, uint16_t *moves, GameState *state)
+int getAllLegalMoves(uint16_t *moves, GameState *state)
 {
+    uint8_t player = state->playerToMove;
     int totalMoves = 0;
     for (uint8_t cell = 0; cell < 64; cell++)
     {
-        if ((state->board[cell] & PIECE_OWNER_MASK) == owner)
+        if ((state->board[cell] & PIECE_OWNER_MASK) == player)
         {
             int numMoves = pieceLegalMoves(cell, moves + totalMoves, state);
             totalMoves += numMoves;
@@ -693,8 +689,9 @@ int getAllLegalMoves(uint8_t owner, uint16_t *moves, GameState *state)
     return totalMoves;
 }
 
-bool playerInCheck(uint8_t player)
+static bool playerInCheck(GameState *state)
 {
+    uint8_t player = state->playerToMove;
     uint8_t opponent;
     if (player == BLACK)
     {
@@ -704,13 +701,13 @@ bool playerInCheck(uint8_t player)
     {
         opponent = BLACK;
     }
-    uint8_t king = getKingLocation(player, &gameState);
+    uint8_t king = getKingLocation(player, state);
     for (uint8_t cell = 0; cell < 64; cell++)
     {
-        if ((gameState.board[cell] & PIECE_OWNER_MASK) == opponent)
+        if ((state->board[cell] & PIECE_OWNER_MASK) == opponent)
         {
             uint16_t moves[64];
-            int numMoves = piecePossibleMoves(cell, moves, &gameState);
+            int numMoves = piecePossibleMoves(cell, moves, state);
             for (int i = 0; i < numMoves; i++)
             {
                 if ((moves[i] & MOVE_TO_MASK) == king)
@@ -723,31 +720,22 @@ bool playerInCheck(uint8_t player)
     return false;
 }
 
-uint64_t calculatePositions(int depth, GameState *state, uint8_t player)
+uint64_t calculatePositions(int depth, int startingDepth, GameState *state)
 {
     if (depth == 0)
     {
         return 1;
     }
-    uint8_t opponent;
-    if (player == BLACK)
-    {
-        opponent = WHITE;
-    }
-    else
-    {
-        opponent = BLACK;
-    }
     uint64_t totalPositions = 0;
     uint16_t moves[1024];
-    int numMoves = getAllLegalMoves(player, moves, state);
+    int numMoves = getAllLegalMoves(moves, state);
     for (int i = 0; i < numMoves; i++)
     {
         GameState copyState = *state;
         movePiece(moves[i], &copyState);
-        uint64_t positions = calculatePositions(depth - 1, &copyState, opponent);
+        uint64_t positions = calculatePositions(depth - 1, startingDepth, &copyState);
         totalPositions += positions;
-        if (depth == 5)
+        if (depth == startingDepth)
         {
             uint8_t fromCell = moves[i] & MOVE_TO_MASK;
             uint8_t toCell = (moves[i] & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
@@ -757,16 +745,18 @@ uint64_t calculatePositions(int depth, GameState *state, uint8_t player)
             string[2] = 'a' + (toCell % 8);
             string[3] = '8' - (toCell / 8);
             string[4] = 0;
-            printf("%s: %lu\n", string, positions);
+            char logString[LOG_SIZE];
+            snprintf(logString, LOG_SIZE, "%s: %lu", string, positions);
+            debugLog(logString);
         }
     }
     return totalPositions;
 }
 
-enum GameEnd checkGameEnd(GameState *state, uint8_t player)
+enum GameEnd checkGameEnd(GameState *state)
 {
     uint16_t moves[1024];
-    int numMoves = getAllLegalMoves(player, moves, state);
+    int numMoves = getAllLegalMoves(moves, state);
     if (numMoves > 0)
     {
         if (state->halfMoves >= 100)
@@ -775,16 +765,16 @@ enum GameEnd checkGameEnd(GameState *state, uint8_t player)
         }
         return GAME_NOT_OVER;
     }
-    if (playerInCheck(player))
+    if (playerInCheck(state))
     {
         return CHECKMATE;
     }
     return STALEMATE;
 }
 
-static int AIEvaluate(GameState *state, uint8_t player)
+static int AIEvaluate(GameState *state)
 {
-    enum GameEnd end = checkGameEnd(state, player);
+    enum GameEnd end = checkGameEnd(state);
     if (end == CHECKMATE)
     {
         return CHECKMATE_EVALUATION;
@@ -793,6 +783,7 @@ static int AIEvaluate(GameState *state, uint8_t player)
     {
         return STALEMATE_EVALUATION;
     }
+    uint8_t player = state->playerToMove;
     int evaluation = 0;
     for (int i = 0; i < 64; i++)
     {
@@ -854,62 +845,62 @@ static int AIEvaluate(GameState *state, uint8_t player)
     return evaluation;
 }
 
-static MoveEvaluation AISearch(int depth, GameState *state, uint8_t player)
+static int AISearch(int depth, int startingDepth, GameState *state, uint16_t *bestMoves, uint32_t *numBestMoves)
 {
-    MoveEvaluation bestMove;
-    bestMove.move = 0;
     if (depth == 0)
     {
-        bestMove.evaluation = AIEvaluate(state, player);
-        return bestMove;
-    }
-    uint8_t opponent;
-    if (player == BLACK)
-    {
-        opponent = WHITE;
-    }
-    else
-    {
-        opponent = BLACK;
+        return AIEvaluate(state);
     }
     uint16_t moves[1024];
-    int numMoves = getAllLegalMoves(player, moves, state);
+    int numMoves = getAllLegalMoves(moves, state);
     if (numMoves <= 0)
     {
-        if (playerInCheck(player))
+        if (playerInCheck(state))
         {
-            bestMove.evaluation = CHECKMATE_EVALUATION;
+            return CHECKMATE_EVALUATION;
         }
         else
         {
-            bestMove.evaluation = STALEMATE_EVALUATION;
+            return STALEMATE_EVALUATION;
         }
-        return bestMove;
     }
-    bestMove.evaluation = CHECKMATE_EVALUATION;
+    int bestEvaluation = CHECKMATE_EVALUATION;
     for (int i = 0; i < numMoves; i++)
     {
         GameState copyState = *state;
         movePiece(moves[i], &copyState);
-        MoveEvaluation newEval = AISearch(depth - 1, &copyState, opponent);
-        newEval.evaluation = -newEval.evaluation;
-        if (newEval.evaluation >= bestMove.evaluation)
+        int newEval = AISearch(depth - 1, startingDepth, &copyState, bestMoves, numBestMoves);
+        newEval = -newEval;
+        if (newEval > bestEvaluation)
         {
-            bestMove.move = moves[i];
-            bestMove.evaluation = newEval.evaluation;
+            bestEvaluation = newEval;
+            if (depth == startingDepth)
+            {
+                bestMoves[0] = moves[i];
+                *numBestMoves = 1;
+            }
+        }
+        else if (depth == startingDepth && newEval == bestEvaluation)
+        {
+            bestMoves[*numBestMoves] = moves[i];
+            (*numBestMoves)++;
         }
     }
-    return bestMove;
+    return bestEvaluation;
 }
 
-uint16_t getComputerMove(uint8_t player)
+uint16_t getComputerMove(void)
 {
-    MoveEvaluation moveEval = AISearch(4, &gameState, player);
-    if (moveEval.move == 0)
+    uint16_t bestMoves[1024];
+    uint32_t numBestMoves = 0;
+    AISearch(4, 4, &gameState, bestMoves, &numBestMoves);
+    // Pick a move at random if multiple moves are tied for best evaluation.
+    // Helps stop AI from repeating moves.
+    if (numBestMoves == 0)
     {
-        debugLog("getComputerMove: Did not find a move (shouldn't happen)");
+        debugLog("getComputerMove: Did not find a move (this should never happen)");
     }
-    return moveEval.move;
+    return bestMoves[pcgRangedRandom(numBestMoves)];
 }
 
 void loadFenString(const char *str)

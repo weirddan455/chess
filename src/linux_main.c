@@ -37,7 +37,7 @@ static bool newFramebuffer(int width, int height)
     return true;
 }
 
-static uint8_t handleNextEvent(int *newWidth, int *newHeight)
+static uint8_t handleNextEvent(int *newWidth, int *newHeight, bool playerGame)
 {
     XEvent event;
     XNextEvent(display, &event);
@@ -65,13 +65,25 @@ static uint8_t handleNextEvent(int *newWidth, int *newHeight)
         {
             if (event.xbutton.button == 1)
             {
-                leftClickEvent(event.xbutton.x, event.xbutton.y);
-                return RENDER;
+                if (playerGame)
+                {
+                    leftClickEvent(event.xbutton.x, event.xbutton.y);
+                    return RENDER;
+                }
+                else if (gameOverString != NULL)
+                {
+                    gameOverString = NULL;
+                    initGameState();
+                    return RENDER;
+                }
             }
             else if (event.xbutton.button == 3)
             {
-                rightClickEvent();
-                return RENDER;
+                if (playerGame)
+                {
+                    rightClickEvent();
+                    return RENDER;
+                }
             }
             break;
         }
@@ -79,7 +91,131 @@ static uint8_t handleNextEvent(int *newWidth, int *newHeight)
     return 0;
 }
 
-int main(void)
+static void AIVsAILoop(void)
+{
+    while(true)
+    {
+        int newWidth = 0;
+        int newHeight = 0;
+        uint8_t flags = 0;
+        while (XPending(display) > 0)
+        {
+            flags |= handleNextEvent(&newWidth, &newHeight, false);
+            if (flags & QUIT)
+            {
+                return;
+            }
+        }
+        if (newWidth > 0 && newHeight > 0 && (newWidth != framebuffer.width || newHeight != framebuffer.height))
+        {
+            XDestroyImage(ximage);
+            framebuffer.width = newWidth;
+            framebuffer.height = newHeight;
+            if (!newFramebuffer(newWidth, newHeight))
+            {
+                puts("Failed to resize framebuffer");
+                return;
+            }
+        }
+        uint16_t move = getComputerMove(gameState.playerToMove);
+        movePiece(move, &gameState);
+        enum GameEnd end = checkGameEnd(&gameState, gameState.playerToMove);
+        if (end == CHECKMATE)
+        {
+            if (gameState.playerToMove == WHITE)
+            {
+                gameOverString = "Black Wins - Checkmate";
+            }
+            else
+            {
+                gameOverString = "White Wins - Checkmate";
+            }
+        }
+        else if (end == STALEMATE)
+        {
+            gameOverString = "Stalemate";
+        }
+        else if (end == DRAW_50_MOVE)
+        {
+            gameOverString = "Draw by 50 move rule";
+        }
+        renderFrame();
+        while (gameOverString != NULL)
+        {
+            flags = 0;
+            newWidth = 0;
+            newHeight = 0;
+            do
+            {
+                flags |= handleNextEvent(&newWidth, &newHeight, false);
+                if (flags & QUIT)
+                {
+                    return;
+                }
+            } while (XPending(display) > 0);
+            if (newWidth > 0 && newHeight > 0 && (newWidth != framebuffer.width || newHeight != framebuffer.height))
+            {
+                XDestroyImage(ximage);
+                framebuffer.width = newWidth;
+                framebuffer.height = newHeight;
+                if (!newFramebuffer(newWidth, newHeight))
+                {
+                    puts("Failed to resize framebuffer");
+                    return;
+                }
+                renderFrame();
+            }
+            else if (flags & RENDER)
+            {
+                renderFrame();
+            }
+            else if (flags & BLIT)
+            {
+                linuxBlitToScreen();
+            }
+        }
+    }
+}
+
+static void playerVsAILoop(void)
+{
+    while(true)
+    {
+        int newWidth = 0;
+        int newHeight = 0;
+        uint8_t flags = 0;
+        do
+        {
+            flags |= handleNextEvent(&newWidth, &newHeight, true);
+            if (flags & QUIT)
+            {
+                return;
+            }
+        } while(XPending(display) > 0);
+        if (newWidth > 0 && newHeight > 0 && (newWidth != framebuffer.width || newHeight != framebuffer.height))
+        {
+            XDestroyImage(ximage);
+            framebuffer.width = newWidth;
+            framebuffer.height = newHeight;
+            if (!newFramebuffer(newWidth, newHeight))
+            {
+                puts("Failed to resize framebuffer");
+                return;
+            }
+            renderFrame();
+        }
+        else if (flags & RENDER)
+        {
+            renderFrame();
+        }
+        else if (flags & BLIT)
+        {
+            linuxBlitToScreen();
+        }
+    }
+}
+
+int main(int argc, char **argv)
 {
     display = XOpenDisplay(NULL);
     if (display == NULL)
@@ -119,39 +255,13 @@ int main(void)
     initGameState();
     renderFrame();
 
-    while(true)
+    if (argc > 1 && strcmp(argv[1], "-ai") == 0)
     {
-        int newWidth = 0;
-        int newHeight = 0;
-        uint8_t flags = 0;
-        do
-        {
-            flags |= handleNextEvent(&newWidth, &newHeight);
-            if (flags & QUIT)
-            {
-                return 0;
-            }
-        } while(XPending(display) > 0);
-        if (newWidth > 0 && newHeight > 0 && (newWidth != framebuffer.width || newHeight != framebuffer.height))
-        {
-            XDestroyImage(ximage);
-            framebuffer.width = newWidth;
-            framebuffer.height = newHeight;
-            if (!newFramebuffer(newWidth, newHeight))
-            {
-                puts("Failed to resize framebuffer");
-                return 0;
-            }
-            renderFrame();
-        }
-        else if (flags & RENDER)
-        {
-            renderFrame();
-        }
-        else if (flags & BLIT)
-        {
-            linuxBlitToScreen();
-        }
+        AIVsAILoop();
+    }
+    else
+    {
+        playerVsAILoop();
     }
 
     return 0;

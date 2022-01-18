@@ -103,6 +103,14 @@ void movePiece(uint16_t move, GameState *state)
     }
     state->board[moveTo] = piece;
     state->board[moveFrom] = 0;
+    if (state->playerToMove == WHITE)
+    {
+        state->playerToMove = BLACK;
+    }
+    else
+    {
+        state->playerToMove = WHITE;
+    }
 }
 
 static uint8_t getKingLocation(uint8_t owner, GameState *state)

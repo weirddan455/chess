@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <windowsx.h>
+#include <bcrypt.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -7,6 +8,7 @@
 
 #include "game.h"
 #include "renderer.h"
+#include "pcgrandom.h"
 #include "events.h"
 #include "windows_common.h"
 #include "assets.h"
@@ -94,8 +96,25 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 	return DefWindowProcA(hwnd, Msg, wParam, lParam);
 }
 
+static bool seedRng(void)
+{
+	uint64_t randomBuffer[2];
+	if (BCryptGenRandom(NULL, randomBuffer, 16, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
+	{
+		return false;
+	}
+    rngState.state = randomBuffer[0];
+    rngState.inc = randomBuffer[1] | 1;
+    return true;
+}
+
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
+	if (!seedRng())
+	{
+		OutputDebugStringA("Failed to seed RNG\r\n");
+		return 1;
+	}
 	frameBufferDC = CreateCompatibleDC(NULL);
 	if (frameBufferDC == NULL)
 	{

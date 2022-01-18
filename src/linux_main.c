@@ -11,6 +11,7 @@
 #include <X11/Xutil.h>
 
 #include "game.h"
+#include "pcgrandom.h"
 #include "renderer.h"
 #include "linux_common.h"
 #include "events.h"
@@ -215,8 +216,33 @@ static void playerVsAILoop(void)
     }
 }
 
+static bool seedRng(void)
+{
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd == -1)
+    {
+        printf("Failed to open /dev/urandom: %s\n", strerror(errno));
+        return false;
+    }
+    uint64_t randomBuffer[2];
+    if (read(fd, randomBuffer, 16) != 16)
+    {
+        close(fd);
+        return false;
+    }
+    rngState.state = randomBuffer[0];
+    rngState.inc = randomBuffer[1] | 1;
+    close(fd);
+    return true;
+}
+
 int main(int argc, char **argv)
 {
+    if (!seedRng())
+    {
+        puts("Failed to seed RNG");
+        return 1;
+    }
     display = XOpenDisplay(NULL);
     if (display == NULL)
     {

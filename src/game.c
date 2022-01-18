@@ -845,7 +845,7 @@ static int AIEvaluate(GameState *state)
     return evaluation;
 }
 
-static int AISearch(int depth, int startingDepth, GameState *state, uint16_t *bestMoves, uint32_t *numBestMoves)
+static int AISearch(int depth, GameState *state)
 {
     if (depth == 0)
     {
@@ -864,36 +864,47 @@ static int AISearch(int depth, int startingDepth, GameState *state, uint16_t *be
             return STALEMATE_EVALUATION;
         }
     }
-    int bestEvaluation = CHECKMATE_EVALUATION;
+    int bestScore = CHECKMATE_EVALUATION;
     for (int i = 0; i < numMoves; i++)
     {
         GameState copyState = *state;
         movePiece(moves[i], &copyState);
-        int newEval = AISearch(depth - 1, startingDepth, &copyState, bestMoves, numBestMoves);
-        newEval = -newEval;
-        if (newEval > bestEvaluation)
+        int score = AISearch(depth - 1, &copyState);
+        score = -score;
+        if (score > bestScore)
         {
-            bestEvaluation = newEval;
-            if (depth == startingDepth)
-            {
-                bestMoves[0] = moves[i];
-                *numBestMoves = 1;
-            }
-        }
-        else if (depth == startingDepth && newEval == bestEvaluation)
-        {
-            bestMoves[*numBestMoves] = moves[i];
-            (*numBestMoves)++;
+            bestScore = score;
         }
     }
-    return bestEvaluation;
+    return bestScore;
 }
 
 uint16_t getComputerMove(void)
 {
     uint16_t bestMoves[1024];
     uint32_t numBestMoves = 0;
-    AISearch(4, 4, &gameState, bestMoves, &numBestMoves);
+    uint16_t moves[1024];
+    int numMoves = getAllLegalMoves(moves, &gameState);
+    int bestScore = CHECKMATE_EVALUATION;
+    for (int i = 0 ; i < numMoves; i++)
+    {
+        GameState copyState = gameState;
+        movePiece(moves[i], &copyState);
+        int score = AISearch(2, &copyState);
+        score = -score;
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestMoves[0] = moves[i];
+            numBestMoves = 1;
+        }
+        else if (score == bestScore)
+        {
+            bestMoves[numBestMoves] = moves[i];
+            numBestMoves++;
+        }
+    }
+
     // Pick a move at random if multiple moves are tied for best evaluation.
     // Helps stop AI from repeating moves.
     if (numBestMoves == 0)

@@ -845,7 +845,7 @@ static int AIEvaluate(GameState *state)
     return evaluation;
 }
 
-static int AISearch(int depth, GameState *state)
+static int AISearch(int depth, GameState *state, int alpha, int beta)
 {
     if (depth == 0)
     {
@@ -869,11 +869,19 @@ static int AISearch(int depth, GameState *state)
     {
         GameState copyState = *state;
         movePiece(moves[i], &copyState);
-        int score = AISearch(depth - 1, &copyState);
+        int score = AISearch(depth - 1, &copyState, -beta, -alpha);
         score = -score;
         if (score > bestScore)
         {
             bestScore = score;
+        }
+        if (bestScore > alpha)
+        {
+            alpha = bestScore;
+        }
+        if (alpha >= beta)
+        {
+            break;
         }
     }
     return bestScore;
@@ -885,20 +893,21 @@ uint16_t getComputerMove(void)
     uint32_t numBestMoves = 0;
     uint16_t moves[1024];
     int numMoves = getAllLegalMoves(moves, &gameState);
-    int bestScore = CHECKMATE_EVALUATION;
+    int alpha = CHECKMATE_EVALUATION;
+    int beta = -CHECKMATE_EVALUATION;
     for (int i = 0 ; i < numMoves; i++)
     {
         GameState copyState = gameState;
         movePiece(moves[i], &copyState);
-        int score = AISearch(2, &copyState);
+        int score = AISearch(3, &copyState, -beta, -alpha);
         score = -score;
-        if (score > bestScore)
+        if (score > alpha)
         {
-            bestScore = score;
+            alpha = score;
             bestMoves[0] = moves[i];
             numBestMoves = 1;
         }
-        else if (score == bestScore)
+        else if (score == alpha)
         {
             bestMoves[numBestMoves] = moves[i];
             numBestMoves++;

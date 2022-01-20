@@ -13,6 +13,9 @@ Window window;
 XImage *ximage;
 GC gc;
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
 void linuxBlitToScreen(void)
 {
     XPutImage(display, window, gc, ximage, 0, 0, 0, 0, framebuffer.width, framebuffer.height);
@@ -68,4 +71,9 @@ void *linuxLoadFile(const char *fileName)
 void linuxDebugLog(const char *message)
 {
     puts(message);
+}
+
+void linuxMakeComputerMove(void)
+{
+    pthread_cond_signal(&cond);
 }

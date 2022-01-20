@@ -4,7 +4,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-void leftClickEvent(int x, int y);
+extern volatile bool AIisThinking;
+
+void leftClickEvent(int x, int y, bool playerGame);
 void rightClickEvent(void);
 
 #endif

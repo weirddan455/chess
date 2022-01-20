@@ -496,3 +496,38 @@ void renderFrame(void)
     }
     blitToScreen();
 }
+
+bool handleGameOver(void)
+{
+    enum GameEnd end = checkGameEnd(&gameState);
+    switch (end)
+    {
+        case GAME_NOT_OVER:
+        {
+            return false;
+        }
+        case CHECKMATE:
+        {
+            if (gameState.playerToMove == WHITE)
+            {
+                gameOverString = "Checkmate - Black Wins";
+            }
+            else
+            {
+                gameOverString = "Checkmate - White Wins";
+            }
+            break;
+        }
+        case STALEMATE:
+        {
+            gameOverString = "Stalemate";
+            break;
+        }
+        case DRAW_50_MOVE:
+        {
+            gameOverString = "Draw by 50 move rule";
+            break;
+        }
+    }
+    return true;
+}

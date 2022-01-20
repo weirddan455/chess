@@ -1,6 +1,7 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct Image
@@ -62,5 +63,6 @@ extern uint8_t pawnPromoteCell;
 
 GameArea getGameArea(void);
 void renderFrame(void);
+bool handleGameOver(void);
 
 #endif

@@ -6,5 +6,6 @@
 void blitToScreen(void);
 void *loadFile(const char *fileName);
 void debugLog(const char *message);
+void makeComputerMove(void);
 
 #endif

@@ -1,53 +1,30 @@
 #include "events.h"
 #include "game.h"
 #include "renderer.h"
+#include "platform.h"
 
 #include <stddef.h>
+
+volatile bool AIisThinking;
 
 static uint16_t moves[64];
 static int numMoves;
 
-static void makeComputerMove(void)
+void leftClickEvent(int x, int y, bool playerGame)
 {
-    enum GameEnd end = checkGameEnd(&gameState);
-    if (end == CHECKMATE)
+    if (AIisThinking)
     {
-        gameOverString = "White Wins - Checkmate";
         return;
     }
-    else if (end == STALEMATE)
-    {
-        gameOverString = "Stalemate";
-        return;
-    }
-    else if (end == DRAW_50_MOVE)
-    {
-        gameOverString = "Draw by 50 rule move";
-        return;
-    }
-    uint16_t move = getComputerMove();
-    movePiece(move, &gameState);
-    end = checkGameEnd(&gameState);
-    if (end == CHECKMATE)
-    {
-        gameOverString = "Black Wins - Checkmate";
-    }
-    else if (end == STALEMATE)
-    {
-        gameOverString = "Stalemate";
-    }
-    else if (end == DRAW_50_MOVE)
-    {
-        gameOverString = "Draw by 50 rule move";
-    }
-}
-
-void leftClickEvent(int x, int y)
-{
     if (gameOverString != NULL)
     {
         gameOverString = NULL;
         initGameState();
+        if (!playerGame)
+        {
+            AIisThinking = true;
+            makeComputerMove();
+        }
         return;
     }
     GameArea gameArea = getGameArea();
@@ -91,7 +68,11 @@ void leftClickEvent(int x, int y)
         }
         if (pawnPromoteCell == 255)
         {
-            makeComputerMove();
+            if (!handleGameOver())
+            {
+                AIisThinking = true;
+                makeComputerMove();
+            }
         }
     }
 	else if ((gameState.board[cell] & PIECE_OWNER_MASK) == WHITE)
@@ -131,7 +112,11 @@ void leftClickEvent(int x, int y)
             else
             {
                 movePiece(move, &gameState);
-                makeComputerMove();
+                if (!handleGameOver())
+                {
+                    AIisThinking = true;
+                    makeComputerMove();
+                }
             }
         }
     }

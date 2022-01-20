@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -7,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
@@ -38,6 +40,52 @@ static bool newFramebuffer(int width, int height)
     return true;
 }
 
+static void *playerGameLoop(void *arg)
+{
+    while (true)
+    {
+        pthread_mutex_lock(&mutex);
+        while (!AIisThinking)
+        {
+            pthread_cond_wait(&cond, &mutex);
+        }
+        pthread_mutex_unlock(&mutex);
+        uint16_t move = getComputerMove();
+        pthread_mutex_lock(&mutex);
+        movePiece(move, &gameState);
+        handleGameOver();
+        renderFrame();
+        AIisThinking = false;
+        pthread_mutex_unlock(&mutex);
+    }
+    return NULL;
+}
+
+static void *AIGameLoop(void *arg)
+{
+    while (true)
+    {
+        pthread_mutex_lock(&mutex);
+        while (!AIisThinking)
+        {
+            pthread_cond_wait(&cond, &mutex);
+        }
+        pthread_mutex_unlock(&mutex);
+        bool gameOver = false;
+        while (!gameOver)
+        {
+            uint16_t move = getComputerMove();
+            pthread_mutex_lock(&mutex);
+            movePiece(move, &gameState);
+            gameOver = handleGameOver();
+            renderFrame();
+            AIisThinking = !gameOver;
+            pthread_mutex_unlock(&mutex);
+        }
+    }
+    return NULL;
+}
+
 static uint8_t handleNextEvent(int *newWidth, int *newHeight, bool playerGame)
 {
     XEvent event;
@@ -66,25 +114,13 @@ static uint8_t handleNextEvent(int *newWidth, int *newHeight, bool playerGame)
         {
             if (event.xbutton.button == 1)
             {
-                if (playerGame)
-                {
-                    leftClickEvent(event.xbutton.x, event.xbutton.y);
-                    return RENDER;
-                }
-                else if (gameOverString != NULL)
-                {
-                    gameOverString = NULL;
-                    initGameState();
-                    return RENDER;
-                }
+                leftClickEvent(event.xbutton.x, event.xbutton.y, playerGame);
+                return RENDER;
             }
             else if (event.xbutton.button == 3)
             {
-                if (playerGame)
-                {
-                    rightClickEvent();
-                    return RENDER;
-                }
+                rightClickEvent();
+                return RENDER;
             }
             break;
         }
@@ -92,107 +128,25 @@ static uint8_t handleNextEvent(int *newWidth, int *newHeight, bool playerGame)
     return 0;
 }
 
-static void AIVsAILoop(void)
+static void mainThreadLoop(bool playerGame)
 {
+    struct timespec sleepTime;
+    sleepTime.tv_sec = 0;
+    sleepTime.tv_nsec = 20000000;
     while(true)
     {
+        pthread_mutex_lock(&mutex);
         int newWidth = 0;
         int newHeight = 0;
         uint8_t flags = 0;
         while (XPending(display) > 0)
         {
-            flags |= handleNextEvent(&newWidth, &newHeight, false);
+            flags |= handleNextEvent(&newWidth, &newHeight, playerGame);
             if (flags & QUIT)
             {
                 return;
             }
         }
-        if (newWidth > 0 && newHeight > 0 && (newWidth != framebuffer.width || newHeight != framebuffer.height))
-        {
-            XDestroyImage(ximage);
-            framebuffer.width = newWidth;
-            framebuffer.height = newHeight;
-            if (!newFramebuffer(newWidth, newHeight))
-            {
-                puts("Failed to resize framebuffer");
-                return;
-            }
-        }
-        uint16_t move = getComputerMove();
-        movePiece(move, &gameState);
-        enum GameEnd end = checkGameEnd(&gameState);
-        if (end == CHECKMATE)
-        {
-            if (gameState.playerToMove == WHITE)
-            {
-                gameOverString = "Black Wins - Checkmate";
-            }
-            else
-            {
-                gameOverString = "White Wins - Checkmate";
-            }
-        }
-        else if (end == STALEMATE)
-        {
-            gameOverString = "Stalemate";
-        }
-        else if (end == DRAW_50_MOVE)
-        {
-            gameOverString = "Draw by 50 move rule";
-        }
-        renderFrame();
-        while (gameOverString != NULL)
-        {
-            flags = 0;
-            newWidth = 0;
-            newHeight = 0;
-            do
-            {
-                flags |= handleNextEvent(&newWidth, &newHeight, false);
-                if (flags & QUIT)
-                {
-                    return;
-                }
-            } while (XPending(display) > 0);
-            if (newWidth > 0 && newHeight > 0 && (newWidth != framebuffer.width || newHeight != framebuffer.height))
-            {
-                XDestroyImage(ximage);
-                framebuffer.width = newWidth;
-                framebuffer.height = newHeight;
-                if (!newFramebuffer(newWidth, newHeight))
-                {
-                    puts("Failed to resize framebuffer");
-                    return;
-                }
-                renderFrame();
-            }
-            else if (flags & RENDER)
-            {
-                renderFrame();
-            }
-            else if (flags & BLIT)
-            {
-                linuxBlitToScreen();
-            }
-        }
-    }
-}
-
-static void playerVsAILoop(void)
-{
-    while(true)
-    {
-        int newWidth = 0;
-        int newHeight = 0;
-        uint8_t flags = 0;
-        do
-        {
-            flags |= handleNextEvent(&newWidth, &newHeight, true);
-            if (flags & QUIT)
-            {
-                return;
-            }
-        } while(XPending(display) > 0);
         if (newWidth > 0 && newHeight > 0 && (newWidth != framebuffer.width || newHeight != framebuffer.height))
         {
             XDestroyImage(ximage);
@@ -213,6 +167,8 @@ static void playerVsAILoop(void)
         {
             linuxBlitToScreen();
         }
+        pthread_mutex_unlock(&mutex);
+        nanosleep(&sleepTime, NULL);
     }
 }
 
@@ -281,14 +237,29 @@ int main(int argc, char **argv)
     initGameState();
     renderFrame();
 
+    pthread_t AIThread;
+    bool playerGame;
     if (argc > 1 && strcmp(argv[1], "-ai") == 0)
     {
-        AIVsAILoop();
+        AIisThinking = true;
+        playerGame = false;
+        if (pthread_create(&AIThread, NULL, AIGameLoop, NULL) != 0)
+        {
+            puts("pthread_create failed");
+            return 1;
+        }
     }
     else
     {
-        playerVsAILoop();
+        playerGame = true;
+        if (pthread_create(&AIThread, NULL, playerGameLoop, NULL) != 0)
+        {
+            puts("pthread_create failed");
+            return 1;
+        }
     }
+
+    mainThreadLoop(playerGame);
 
     return 0;
 }

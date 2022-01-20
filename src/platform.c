@@ -32,3 +32,12 @@ void debugLog(const char *message)
 	linuxDebugLog(message);
 #endif
 }
+
+void makeComputerMove(void)
+{
+#ifdef _WIN32
+	windowsMakeComputerMove();
+#else
+	linuxMakeComputerMove();
+#endif
+}

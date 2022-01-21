@@ -1,6 +1,8 @@
 #include "windows_common.h"
 #include "renderer.h"
 #include "platform.h"
+#include "game.h"
+#include "events.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -9,6 +11,10 @@
 
 HDC windowDC;
 HDC frameBufferDC;
+
+CONDITION_VARIABLE cond = CONDITION_VARIABLE_INIT;
+SRWLOCK lock = SRWLOCK_INIT;
+volatile bool AIThreadWakeup;
 
 void windowsBlitToScreen(void)
 {
@@ -98,4 +104,16 @@ void windowsDebugLog(const char *message)
 	messageCopy[len + 1] = '\n';
 	messageCopy[len + 2] = 0;
 	OutputDebugStringA(messageCopy);
+}
+
+void windowsMakeComputerMove(void)
+{
+	AcquireSRWLockExclusive(&lock);
+	if (AIThreadWakeup == true)
+	{
+		OutputDebugStringA("wtf it's already awake");
+	}
+	AIThreadWakeup = true;
+	ReleaseSRWLockExclusive(&lock);
+	WakeConditionVariable(&cond);
 }

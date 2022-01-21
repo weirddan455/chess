@@ -16,6 +16,8 @@
 
 static HBITMAP framebufferDIB;
 
+static bool playerGame;
+
 static bool newFramebuffer(int width, int height)
 {
 	BITMAPINFO bitmapInfo;
@@ -82,7 +84,7 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 		}
 		case WM_LBUTTONDOWN:
 		{
-			leftClickEvent(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+			leftClickEvent(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), playerGame);
 			renderFrame();
 			return 0;
 		}
@@ -92,8 +94,42 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 			renderFrame();
 			return 0;
 		}
+		case WM_USER:
+		{
+			uint16_t move = wParam;
+			movePiece(move, &gameState);
+			bool gameOver = handleGameOver();
+			renderFrame();
+			if (playerGame || gameOver)
+			{
+				AIisThinking = false;
+			}
+			else
+			{
+				windowsMakeComputerMove();
+			}
+			return 0;
+		}
 	}
 	return DefWindowProcA(hwnd, Msg, wParam, lParam);
+}
+
+static DWORD AIThreadLoop(_In_ LPVOID lpParameter)
+{
+	HWND window = lpParameter;
+	while (true)
+	{
+		AcquireSRWLockExclusive(&lock);
+		while (!AIThreadWakeup)
+		{
+			SleepConditionVariableSRW(&cond, &lock, INFINITE, 0);
+		}
+		AIThreadWakeup = false;
+		ReleaseSRWLockExclusive(&lock);
+		uint16_t move = getComputerMove();
+		PostMessageA(window, WM_USER, move, 0);
+	}
+	return 0;
 }
 
 static bool seedRng(void)
@@ -174,6 +210,20 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	loadFont();
 	initGameState();
 	renderFrame();
+	if (strcmp(lpCmdLine, "-ai") == 0)
+	{
+		AIisThinking = true;
+		AIThreadWakeup = true;
+	}
+	else
+	{
+		playerGame = true;
+	}
+	if (CreateThread(NULL, 0, AIThreadLoop, window, 0, NULL) == NULL)
+	{
+		OutputDebugStringA("CreateThread failed\r\n");
+		return 1;
+	}
 	while (true)
 	{
 		MSG message;

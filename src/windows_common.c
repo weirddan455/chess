@@ -109,10 +109,6 @@ void windowsDebugLog(const char *message)
 void windowsMakeComputerMove(void)
 {
 	AcquireSRWLockExclusive(&lock);
-	if (AIThreadWakeup == true)
-	{
-		OutputDebugStringA("wtf it's already awake");
-	}
 	AIThreadWakeup = true;
 	ReleaseSRWLockExclusive(&lock);
 	WakeConditionVariable(&cond);

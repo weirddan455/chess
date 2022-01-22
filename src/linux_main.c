@@ -53,6 +53,9 @@ static void *playerGameLoop(void *arg)
         uint16_t move = getComputerMove();
         pthread_mutex_lock(&mutex);
         movePiece(move, &gameState);
+        highlighted[0] = (move & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
+        highlighted[1] = move & MOVE_TO_MASK;
+        numHightlighted = 2;
         handleGameOver();
         renderFrame();
         AIisThinking = false;
@@ -77,6 +80,9 @@ static void *AIGameLoop(void *arg)
             uint16_t move = getComputerMove();
             pthread_mutex_lock(&mutex);
             movePiece(move, &gameState);
+            highlighted[0] = (move & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
+            highlighted[1] = move & MOVE_TO_MASK;
+            numHightlighted = 2;
             gameOver = handleGameOver();
             renderFrame();
             AIisThinking = !gameOver;

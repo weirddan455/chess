@@ -88,7 +88,7 @@ void leftClickEvent(int x, int y, bool playerGame)
             numHightlighted = numMoves + 1;
         }
     }
-    else if (numHightlighted > 0)
+    else
     {
         uint16_t move;
         bool validMove = false;
@@ -104,6 +104,7 @@ void leftClickEvent(int x, int y, bool playerGame)
         if (validMove)
         {
             numHightlighted = 0;
+            numMoves = 0;
             if (move & PAWN_PROMOTE_MASK)
             {
                 pawnPromoteCell = cell;
@@ -125,4 +126,5 @@ void leftClickEvent(int x, int y, bool playerGame)
 void rightClickEvent(void)
 {
     numHightlighted = 0;
+    numMoves = 0;
 }

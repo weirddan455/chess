@@ -57,3 +57,4 @@ dkms.conf
 
 #build dir
 build
+win-build

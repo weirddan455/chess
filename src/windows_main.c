@@ -98,6 +98,9 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 		{
 			uint16_t move = wParam;
 			movePiece(move, &gameState);
+			highlighted[0] = (move & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
+			highlighted[1] = move & MOVE_TO_MASK;
+			numHightlighted = 2;
 			bool gameOver = handleGameOver();
 			renderFrame();
 			if (playerGame || gameOver)

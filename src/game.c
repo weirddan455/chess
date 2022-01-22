@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -746,7 +747,7 @@ uint64_t calculatePositions(int depth, int startingDepth, GameState *state)
             string[3] = '8' - (toCell / 8);
             string[4] = 0;
             char logString[LOG_SIZE];
-            snprintf(logString, LOG_SIZE, "%s: %llu", string, positions);
+            snprintf(logString, LOG_SIZE, "%s: %" PRIu64, string, positions);
             debugLog(logString);
         }
     }

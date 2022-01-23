@@ -889,20 +889,20 @@ uint16_t getComputerMove(void)
     uint32_t numBestMoves = 0;
     uint16_t moves[1024];
     int numMoves = getAllLegalMoves(moves, &gameState);
-    int bestScore = CHECKMATE_EVALUATION;
+    int alpha = CHECKMATE_EVALUATION;
     for (int i = 0 ; i < numMoves; i++)
     {
         GameState copyState = gameState;
         movePiece(moves[i], &copyState);
-        int score = AISearch(3, &copyState, CHECKMATE_EVALUATION, -CHECKMATE_EVALUATION);
+        int score = AISearch(3, &copyState, CHECKMATE_EVALUATION, -(alpha - 1));
         score = -score;
-        if (score > bestScore)
+        if (score > alpha)
         {
-            bestScore = score;
+            alpha = score;
             bestMoves[0] = moves[i];
             numBestMoves = 1;
         }
-        else if (score == bestScore)
+        else if (score == alpha)
         {
             bestMoves[numBestMoves] = moves[i];
             numBestMoves++;

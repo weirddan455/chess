@@ -20,6 +20,7 @@ void leftClickEvent(int x, int y, bool playerGame)
     {
         gameOverString = NULL;
         initGameState();
+        numHightlighted = 0;
         if (!playerGame)
         {
             AIisThinking = true;

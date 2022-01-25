@@ -55,7 +55,6 @@ extern GameState gameState;
 void movePiece(uint16_t move, GameState *state);
 int pieceLegalMoves(uint8_t cell, uint16_t *moves, GameState *state);
 void initGameState(void);
-int getAllLegalMoves(uint16_t *moves, GameState *state);
 uint64_t calculatePositions(int depth, int startingDepth, GameState *state);
 void loadFenString(const char *str);
 uint16_t getComputerMove(void);

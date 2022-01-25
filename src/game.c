@@ -675,7 +675,26 @@ int pieceLegalMoves(uint8_t cell, uint16_t *moves, GameState *state)
     return numLegalMoves;
 }
 
-int getAllLegalMoves(uint16_t *moves, GameState *state)
+static void orderMoves(uint16_t *moves, int numMoves, GameState *state)
+{
+    int goodMoves = 0;
+    for (int i = 0; i < numMoves; i++)
+    {
+        uint16_t moveTo = moves[i] & MOVE_TO_MASK;
+        uint16_t moveFrom = (moves[i] & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
+        uint8_t capturedPieceType = state->board[moveTo] & PIECE_TYPE_MASK;
+        uint8_t capturingPieceType = state->board[moveFrom] & PIECE_TYPE_MASK;
+        if (capturingPieceType < capturedPieceType)
+        {
+            uint16_t temp = moves[goodMoves];
+            moves[goodMoves] = moves[i];
+            moves[i] = temp;
+            goodMoves++;
+        }
+    }
+}
+
+static int getAllLegalMoves(uint16_t *moves, GameState *state)
 {
     uint8_t player = state->playerToMove;
     int totalMoves = 0;
@@ -687,6 +706,10 @@ int getAllLegalMoves(uint16_t *moves, GameState *state)
             totalMoves += numMoves;
         }
     }
+    /* Order moves putting possible best moves first.
+       This improves AI search performance with alpha-beta pruning.
+       Doesn't actually change results.  It's just a guess. */
+    orderMoves(moves, totalMoves, state);
     return totalMoves;
 }
 

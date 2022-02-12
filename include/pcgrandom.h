@@ -12,6 +12,7 @@ typedef struct RngState
 extern RngState rngState;
 
 uint32_t pcgGetRandom(void);
+uint64_t pcgGetRandom64(void);
 uint32_t pcgRangedRandom(uint32_t range);
 
 #endif

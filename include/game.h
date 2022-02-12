@@ -36,8 +36,19 @@
 #define CASTLE_BLACK_KING 4
 #define CASTLE_BLACK_QUEEN 8
 
+typedef struct Position
+{
+    uint64_t hash;
+    int occurences;
+    uint8_t playerToMove;
+    uint8_t enPassantSquare;
+    uint8_t castlingAvailability;
+    uint8_t board[64];
+} Position;
+
 typedef struct GameState
 {
+    uint64_t hash;
     int halfMoves; // Resets when a pawn is moved or a piece is captured.  Used for 50 move draw rule.
     uint8_t playerToMove;
     uint8_t enPassantSquare;
@@ -45,15 +56,27 @@ typedef struct GameState
     uint8_t board[64];
 } GameState;
 
+typedef struct Zobrist
+{
+    uint64_t pieces[768];
+    uint64_t enPassantFile[8];
+    uint64_t playerToMove;
+    uint64_t blackQueenCastle;
+    uint64_t whiteQueenCastle;
+    uint64_t blackKingCastle;
+    uint64_t whiteKingCastle;
+} Zobrist;
+
 enum GameEnd
 {
-    GAME_NOT_OVER, CHECKMATE, STALEMATE, DRAW_50_MOVE
+    GAME_NOT_OVER, CHECKMATE, STALEMATE, DRAW_50_MOVE, DRAW_REPITITION
 };
 
 extern GameState gameState;
 
 void movePiece(uint16_t move, GameState *state);
 int pieceLegalMoves(uint8_t cell, uint16_t *moves, GameState *state);
+void initZobrist(void);
 void initGameState(void);
 uint64_t calculatePositions(int depth, int startingDepth, GameState *state);
 void loadFenString(const char *str);

@@ -240,6 +240,7 @@ int main(int argc, char **argv)
 
     loadImages();
     loadFont();
+    initZobrist();
     initGameState();
     renderFrame();
 

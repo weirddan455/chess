@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "game.h"
 #include "pcgrandom.h"
@@ -10,6 +11,104 @@
 #define STALEMATE_EVALUATION 0
 
 GameState gameState;
+static Zobrist zobrist;
+static Position positionTable[1024];
+
+static int zobristPieceLookup(int cell, uint8_t piece)
+{
+    if (piece == 0)
+    {
+        debugLog("Called zobrist piece lookup on empty cell (fix the bug!)");
+        return 0;
+    }
+    int pieceOffset = (piece & PIECE_TYPE_MASK) - 1;
+    if ((piece & PIECE_OWNER_MASK) == BLACK)
+    {
+        pieceOffset += 6;
+    }
+    return (cell * 12) + pieceOffset;
+}
+
+static bool comparePosition(GameState *state, Position *position)
+{
+    if (state->playerToMove != position->playerToMove)
+    {
+        return false;
+    }
+    if (state->enPassantSquare != position->enPassantSquare)
+    {
+        return false;
+    }
+    if (state->castlingAvailablity != position->castlingAvailability)
+    {
+        return false;
+    }
+    for (int i = 0; i < 64; i++)
+    {
+        if (state->board[i] != position->board[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static int getPositionOccurences(GameState *state)
+{
+    uint64_t startingLookup = state->hash & 1023;
+    uint64_t lookup = startingLookup;
+    while (positionTable[lookup].occurences > 0)
+    {
+        if (positionTable[lookup].hash == state->hash)
+        {
+            if (comparePosition(state, &positionTable[lookup]))
+            {
+                return positionTable[lookup].occurences;
+            }
+            debugLog("Zobrist hash collision (should be very rare)");
+        }
+        lookup = (lookup + 1) & 1023;
+        if (lookup == startingLookup)
+        {
+            debugLog("Position table is full");
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static void addPosition(GameState *state)
+{
+    uint64_t startingLookup = state->hash & 1023;
+    uint64_t lookup = startingLookup;
+    while (positionTable[lookup].occurences > 0)
+    {
+        if (positionTable[lookup].hash == state->hash)
+        {
+            if (comparePosition(state, &positionTable[lookup]))
+            {
+                positionTable[lookup].occurences++;
+                return;
+            }
+            debugLog("Zobrist hash collision (should be very rare)");
+        }
+        lookup = (lookup + 1) & 1023;
+        if (lookup == startingLookup)
+        {
+            debugLog("Position table is full");
+            return;
+        }
+    }
+    positionTable[lookup].hash = state->hash;
+    positionTable[lookup].occurences = 1;
+    positionTable[lookup].playerToMove = state->playerToMove;
+    positionTable[lookup].enPassantSquare = state->enPassantSquare;
+    positionTable[lookup].castlingAvailability = state->castlingAvailablity;
+    for (int i = 0; i < 64; i++)
+    {
+        positionTable[lookup].board[i] = state->board[i];
+    }
+}
 
 void movePiece(uint16_t move, GameState *state)
 {
@@ -18,13 +117,24 @@ void movePiece(uint16_t move, GameState *state)
     uint8_t piece = state->board[moveFrom];
     uint8_t pieceOwner = piece & PIECE_OWNER_MASK;
     uint8_t pieceType = piece & PIECE_TYPE_MASK;
-    if (pieceType == PAWN || state->board[moveTo] != 0)
+    uint8_t capturedPiece = state->board[moveTo];
+    uint8_t prevCastling = state->castlingAvailablity;
+    state->hash ^= zobrist.pieces[zobristPieceLookup(moveFrom, piece)];
+    if (capturedPiece != 0)
+    {
+        state->hash ^= zobrist.pieces[zobristPieceLookup(moveTo, capturedPiece)];
+    }
+    if (capturedPiece != 0 || pieceType == PAWN)
     {
         state->halfMoves = 0;
     }
     else
     {
         state->halfMoves++;
+    }
+    if (state->enPassantSquare != 255)
+    {
+        state->hash ^= zobrist.enPassantFile[state->enPassantSquare % 8];
     }
     state->enPassantSquare = 255;
     if (pieceType == PAWN)
@@ -37,6 +147,7 @@ void movePiece(uint16_t move, GameState *state)
             }
             else if (move & CASTLE_ENPASSANT_FLAG)
             {
+                state->hash ^= zobrist.pieces[zobristPieceLookup(moveTo - 8, state->board[moveTo - 8])];
                 state->board[moveTo - 8] = 0;
             }
         }
@@ -48,6 +159,7 @@ void movePiece(uint16_t move, GameState *state)
             }
             else if (move & CASTLE_ENPASSANT_FLAG)
             {
+                state->hash ^= zobrist.pieces[zobristPieceLookup(moveTo + 8, state->board[moveTo + 8])];
                 state->board[moveTo + 8] = 0;
             }
         }
@@ -71,11 +183,15 @@ void movePiece(uint16_t move, GameState *state)
         {
             if (moveTo > moveFrom)
             {
+                state->hash ^= zobrist.pieces[zobristPieceLookup(moveTo + 1, state->board[moveTo + 1])];
+                state->hash ^= zobrist.pieces[zobristPieceLookup(moveTo - 1, state->board[moveTo + 1])];
                 state->board[moveTo - 1] = state->board[moveTo + 1];
                 state->board[moveTo + 1] = 0;
             }
             else
             {
+                state->hash ^= zobrist.pieces[zobristPieceLookup(moveTo - 2, state->board[moveTo - 2])];
+                state->hash ^= zobrist.pieces[zobristPieceLookup(moveTo + 1, state->board[moveTo - 2])];
                 state->board[moveTo + 1] = state->board[moveTo - 2];
                 state->board[moveTo - 2] = 0;
             }
@@ -106,6 +222,36 @@ void movePiece(uint16_t move, GameState *state)
     else
     {
         state->playerToMove = WHITE;
+    }
+    uint8_t newCastling = state->castlingAvailablity;
+    if (prevCastling != newCastling)
+    {
+        if ((prevCastling & CASTLE_BLACK_QUEEN) != (newCastling & CASTLE_BLACK_QUEEN))
+        {
+            state->hash ^= zobrist.blackQueenCastle;
+        }
+        if ((prevCastling & CASTLE_WHITE_QUEEN) != (newCastling & CASTLE_WHITE_QUEEN))
+        {
+            state->hash ^= zobrist.whiteQueenCastle;
+        }
+        if ((prevCastling & CASTLE_BLACK_KING) != (newCastling & CASTLE_BLACK_KING))
+        {
+            state->hash ^= zobrist.blackKingCastle;
+        }
+        if ((prevCastling & CASTLE_WHITE_KING) != (newCastling & CASTLE_WHITE_KING))
+        {
+            state->hash ^= zobrist.whiteKingCastle;
+        }
+    }
+    if (state->enPassantSquare != 255)
+    {
+        state->hash ^= zobrist.enPassantFile[state->enPassantSquare % 8];
+    }
+    state->hash ^= zobrist.playerToMove;
+    state->hash ^= zobrist.pieces[zobristPieceLookup(moveTo, piece)];
+    if (state == &gameState)
+    {
+        addPosition(state);
     }
 }
 
@@ -783,6 +929,13 @@ enum GameEnd checkGameEnd(GameState *state)
     int numMoves = getAllLegalMoves(moves, state);
     if (numMoves > 0)
     {
+        if (state == &gameState)
+        {
+            if (getPositionOccurences(state) >= 3)
+            {
+                return DRAW_REPITITION;
+            }
+        }
         if (state->halfMoves >= 100)
         {
             return DRAW_50_MOVE;
@@ -1063,6 +1216,23 @@ void loadFenString(const char *str)
     gameState.halfMoves = atoi(halfMoveString);
 }
 
+void initZobrist(void)
+{
+    for (int i = 0; i < 768; i++)
+    {
+        zobrist.pieces[i] = pcgGetRandom64();
+    }
+    for (int i = 0; i < 8; i++)
+    {
+        zobrist.enPassantFile[i] = pcgGetRandom64();
+    }
+    zobrist.playerToMove = pcgGetRandom64();
+    zobrist.blackQueenCastle = pcgGetRandom64();
+    zobrist.whiteQueenCastle = pcgGetRandom64();
+    zobrist.blackKingCastle = pcgGetRandom64();
+    zobrist.whiteKingCastle = pcgGetRandom64();
+}
+
 void initGameState(void)
 {
     gameState.halfMoves = 0;
@@ -1102,4 +1272,21 @@ void initGameState(void)
     gameState.board[61] = WHITE | BISHOP;
     gameState.board[62] = WHITE | KNIGHT;
     gameState.board[63] = WHITE | ROOK;
+
+    gameState.hash = 0;
+    for (int i = 0; i < 64; i++)
+    {
+        if (gameState.board[i] != 0)
+        {
+            gameState.hash ^= zobrist.pieces[zobristPieceLookup(i, gameState.board[i])];
+        }
+    }
+    gameState.hash ^= zobrist.playerToMove;
+    gameState.hash ^= zobrist.blackQueenCastle;
+    gameState.hash ^= zobrist.whiteQueenCastle;
+    gameState.hash ^= zobrist.blackKingCastle;
+    gameState.hash ^= zobrist.whiteKingCastle;
+
+    memset(positionTable, 0, 1024 * sizeof(Position));
+    addPosition(&gameState);
 }

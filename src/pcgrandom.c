@@ -11,6 +11,13 @@ uint32_t pcgGetRandom(void)
     return (xorshifted >> rot) | (xorshifted << ((0 - rot) & 31));
 }
 
+uint64_t pcgGetRandom64(void)
+{
+    uint64_t randomHigh = pcgGetRandom();
+    uint64_t randomLow = pcgGetRandom();
+    return (randomHigh << 32) | randomLow;
+}
+
 uint32_t pcgRangedRandom(uint32_t range)
 {
     uint32_t x = pcgGetRandom();

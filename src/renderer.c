@@ -528,6 +528,11 @@ bool handleGameOver(void)
             gameOverString = "Draw by 50 move rule";
             break;
         }
+        case DRAW_REPITITION:
+        {
+            gameOverString = "Draw by repitition";
+            break;
+        }
     }
     return true;
 }

@@ -59,7 +59,7 @@ extern FontMetrics fontMetrics;
 extern uint8_t highlighted[64];
 extern int numHightlighted;
 extern const char *gameOverString;
-extern uint8_t pawnPromoteCell;
+extern uint16_t pawnPromoteMove;
 
 GameArea getGameArea(void);
 void renderFrame(void);

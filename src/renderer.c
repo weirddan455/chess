@@ -25,7 +25,7 @@ FontMetrics fontMetrics;
 uint8_t highlighted[64];
 int numHightlighted;
 const char *gameOverString;
-uint8_t pawnPromoteCell = 255;
+uint16_t pawnPromoteMove;
 
 GameArea getGameArea(void)
 {
@@ -490,7 +490,7 @@ void renderFrame(void)
     {
         gameOverBox(gameOverString);
     }
-    else if (pawnPromoteCell != 255)
+    else if (pawnPromoteMove)
     {
         pawnPromoteBox();
     }

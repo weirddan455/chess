@@ -38,37 +38,36 @@ void leftClickEvent(int x, int y, bool playerGame)
 	uint8_t cellX = x / gameArea.gridSize;
 	uint8_t cellY = y / gameArea.gridSize;
 	uint8_t cell = (cellY * 8) + cellX;
-    if (pawnPromoteCell != 255)
+    if (pawnPromoteMove)
     {
+        uint16_t promotion = 0;
         switch (cell)
         {
             case 10:
             {
-                gameState.board[pawnPromoteCell] = WHITE | QUEEN;
-                pawnPromoteCell = 255;
+                promotion = PAWN_PROMOTE_QUEEN;
                 break;
             }
             case 11:
             {
-                gameState.board[pawnPromoteCell] = WHITE | BISHOP;
-                pawnPromoteCell = 255;
+                promotion = PAWN_PROMOTE_BISHOP;
                 break;
             }
             case 12:
             {
-                gameState.board[pawnPromoteCell] = WHITE | KNIGHT;
-                pawnPromoteCell = 255;
+                promotion = PAWN_PROMOTE_KNIGHT;
                 break;
             }
             case 13:
             {
-                gameState.board[pawnPromoteCell] = WHITE | ROOK;
-                pawnPromoteCell = 255;
+                promotion = PAWN_PROMOTE_ROOK;
                 break;
             }
         }
-        if (pawnPromoteCell == 255)
+        if (promotion)
         {
+            movePiece((pawnPromoteMove & (~PAWN_PROMOTE_MASK)) | promotion, &gameState);
+            pawnPromoteMove = 0;
             if (!handleGameOver())
             {
                 AIisThinking = true;
@@ -91,25 +90,22 @@ void leftClickEvent(int x, int y, bool playerGame)
     }
     else
     {
-        uint16_t move;
-        bool validMove = false;
+        uint16_t move = 0;
         for (int i = 0; i < numMoves; i++)
         {
             if ((moves[i] & MOVE_TO_MASK) == cell)
             {
                 move = moves[i];
-                validMove = true;
                 break;
             }
         }
-        if (validMove)
+        if (move)
         {
             numHightlighted = 0;
             numMoves = 0;
             if (move & PAWN_PROMOTE_MASK)
             {
-                pawnPromoteCell = cell;
-                movePiece(move & (~PAWN_PROMOTE_MASK), &gameState);
+                pawnPromoteMove = move;
             }
             else
             {

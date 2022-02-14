@@ -205,6 +205,17 @@ int main(int argc, char **argv)
         puts("Failed to seed RNG");
         return 1;
     }
+    initZobrist();
+    if (argc > 1 && strcmp(argv[1], "-test") == 0)
+    {
+        bool verboseTest = false;
+        if (argc > 2 && strcmp(argv[2], "-verbose") == 0)
+        {
+            verboseTest = true;
+        }
+        runTests(verboseTest);
+        return 0;
+    }
     display = XOpenDisplay(NULL);
     if (display == NULL)
     {
@@ -240,7 +251,6 @@ int main(int argc, char **argv)
 
     loadImages();
     loadFont();
-    initZobrist();
     initGameState();
     renderFrame();
 

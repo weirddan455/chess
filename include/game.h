@@ -78,9 +78,8 @@ void movePiece(uint16_t move, GameState *state);
 int pieceLegalMoves(uint8_t cell, uint16_t *moves, GameState *state);
 void initZobrist(void);
 void initGameState(void);
-uint64_t calculatePositions(int depth, int startingDepth, GameState *state);
-void loadFenString(const char *str);
 uint16_t getComputerMove(void);
 enum GameEnd checkGameEnd(GameState *state);
+void runTests(bool verbose);
 
 #endif

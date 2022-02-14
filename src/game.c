@@ -110,6 +110,40 @@ static void addPosition(GameState *state)
     }
 }
 
+static void hashStartingPosition(void)
+{
+    gameState.hash = 0;
+    for (int i = 0; i < 64; i++)
+    {
+        if (gameState.board[i] != 0)
+        {
+            gameState.hash ^= zobrist.pieces[zobristPieceLookup(i, gameState.board[i])];
+        }
+    }
+    if (gameState.castlingAvailablity & CASTLE_BLACK_QUEEN)
+    {
+        gameState.hash ^= zobrist.blackQueenCastle;
+    }
+    if (gameState.castlingAvailablity & CASTLE_WHITE_QUEEN)
+    {
+        gameState.hash ^= zobrist.whiteQueenCastle;
+    }
+    if (gameState.castlingAvailablity & CASTLE_BLACK_KING)
+    {
+        gameState.hash ^= zobrist.blackKingCastle;
+    }
+    if (gameState.castlingAvailablity & CASTLE_WHITE_KING)
+    {
+        gameState.hash ^= zobrist.whiteKingCastle;
+    }
+    if (gameState.enPassantSquare != 255)
+    {
+        gameState.hash ^= zobrist.enPassantFile[gameState.enPassantSquare % 8];
+    }
+    memset(positionTable, 0, 1024 * sizeof(Position));
+    addPosition(&gameState);
+}
+
 void movePiece(uint16_t move, GameState *state)
 {
     uint8_t moveTo = move & MOVE_TO_MASK;
@@ -749,40 +783,71 @@ int pieceLegalMoves(uint8_t cell, uint16_t *moves, GameState *state)
             uint8_t backRow = owner == BLACK ? 0 : 56;
             uint8_t king = backRow + 4;
             bool kingSide = (possibleMoves[i] & MOVE_TO_MASK) > cell;
-            for (int j = 0; j < 64; j++)
+            // Check for enemy pawns attacking castle path
+            uint8_t pawnCheckSquare = owner == BLACK ? 8 : 48;
+            if (kingSide)
             {
-                if ((state->board[j] & PIECE_OWNER_MASK) == opponent)
+                pawnCheckSquare += 3;
+                for (int j = 0; j < 5; j++)
                 {
-                    uint16_t opponentMoves[64];
-                    int numOpponentMoves = piecePossibleMoves(j, opponentMoves, state);
-                    for (int k = 0; k < numOpponentMoves; k++)
+                    uint8_t pawnCheckPiece = state->board[pawnCheckSquare + j];
+                    if (((pawnCheckPiece & PIECE_OWNER_MASK) == opponent) && (((pawnCheckPiece & PIECE_TYPE_MASK) == PAWN)))
                     {
-                        uint8_t move = opponentMoves[k] & MOVE_TO_MASK;
-                        if (move == king)
+                        legalMove = false;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                pawnCheckSquare++;
+                for (int j = 0; j < 5; j++)
+                {
+                    uint8_t pawnCheckPiece = state->board[pawnCheckSquare + j];
+                    if (((pawnCheckPiece & PIECE_OWNER_MASK) == opponent) && (((pawnCheckPiece & PIECE_TYPE_MASK) == PAWN)))
+                    {
+                        legalMove = false;
+                        break;
+                    }
+                }
+            }
+            if (legalMove)
+            {
+                for (int j = 0; j < 64; j++)
+                {
+                    if ((state->board[j] & PIECE_OWNER_MASK) == opponent)
+                    {
+                        uint16_t opponentMoves[64];
+                        int numOpponentMoves = piecePossibleMoves(j, opponentMoves, state);
+                        for (int k = 0; k < numOpponentMoves; k++)
                         {
-                            legalMove = false;
+                            uint8_t move = opponentMoves[k] & MOVE_TO_MASK;
+                            if (move == king)
+                            {
+                                legalMove = false;
+                                break;
+                            }
+                            if (kingSide)
+                            {
+                                if (move == backRow + 5 || move == backRow + 6)
+                                {
+                                    legalMove = false;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                if (move == backRow + 2 || move == backRow + 3)
+                                {
+                                    legalMove = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!legalMove)
+                        {
                             break;
                         }
-                        if (kingSide)
-                        {
-                            if (move == backRow + 5 || move == backRow + 6)
-                            {
-                                legalMove = false;
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            if (move == backRow + 2 || move == backRow + 3)
-                            {
-                                legalMove = false;
-                                break;
-                            }
-                        }
-                    }
-                    if (!legalMove)
-                    {
-                        break;
                     }
                 }
             }
@@ -890,7 +955,7 @@ static bool playerInCheck(GameState *state)
     return false;
 }
 
-uint64_t calculatePositions(int depth, int startingDepth, GameState *state)
+static uint64_t calculatePositionsEx(int depth, int startingDepth, GameState *state)
 {
     if (depth == 0)
     {
@@ -903,12 +968,12 @@ uint64_t calculatePositions(int depth, int startingDepth, GameState *state)
     {
         GameState copyState = *state;
         movePiece(moves[i], &copyState);
-        uint64_t positions = calculatePositions(depth - 1, startingDepth, &copyState);
+        uint64_t positions = calculatePositionsEx(depth - 1, startingDepth, &copyState);
         totalPositions += positions;
         if (depth == startingDepth)
         {
-            uint8_t fromCell = moves[i] & MOVE_TO_MASK;
-            uint8_t toCell = (moves[i] & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
+            uint8_t fromCell = (moves[i] & MOVE_FROM_MASK) >> MOVE_FROM_SHIFT;
+            uint8_t toCell = moves[i] & MOVE_TO_MASK;
             char string[5];
             string[0] = 'a' + (fromCell % 8);
             string[1] = '8' - (fromCell / 8);
@@ -921,6 +986,11 @@ uint64_t calculatePositions(int depth, int startingDepth, GameState *state)
         }
     }
     return totalPositions;
+}
+
+static uint64_t calculatePositions(int depth, bool verbose)
+{
+    return calculatePositionsEx(depth, verbose ? depth : -1, &gameState);
 }
 
 enum GameEnd checkGameEnd(GameState *state)
@@ -1094,8 +1164,12 @@ uint16_t getComputerMove(void)
     return bestMoves[pcgRangedRandom(numBestMoves)];
 }
 
-void loadFenString(const char *str)
+static void loadFenString(const char *str)
 {
+    for (int i = 0; i < 64; i++)
+    {
+        gameState.board[i] = 0;
+    }
     char c = *str;
     int boardIndex = 0;
     while (boardIndex < 64)
@@ -1214,6 +1288,8 @@ void loadFenString(const char *str)
     }
     halfMoveString[i] = 0;
     gameState.halfMoves = atoi(halfMoveString);
+
+    hashStartingPosition();
 }
 
 void initZobrist(void)
@@ -1273,20 +1349,33 @@ void initGameState(void)
     gameState.board[62] = WHITE | KNIGHT;
     gameState.board[63] = WHITE | ROOK;
 
-    gameState.hash = 0;
-    for (int i = 0; i < 64; i++)
-    {
-        if (gameState.board[i] != 0)
-        {
-            gameState.hash ^= zobrist.pieces[zobristPieceLookup(i, gameState.board[i])];
-        }
-    }
-    gameState.hash ^= zobrist.playerToMove;
-    gameState.hash ^= zobrist.blackQueenCastle;
-    gameState.hash ^= zobrist.whiteQueenCastle;
-    gameState.hash ^= zobrist.blackKingCastle;
-    gameState.hash ^= zobrist.whiteKingCastle;
+    hashStartingPosition();
+}
 
-    memset(positionTable, 0, 1024 * sizeof(Position));
-    addPosition(&gameState);
+static void testFen(const char *fen, int depth, uint64_t expected, bool verbose)
+{
+    debugLog(fen);
+    loadFenString(fen);
+    uint64_t positions = calculatePositions(depth, verbose);
+    if (positions == expected)
+    {
+        debugLog("Success");
+    }
+    else
+    {
+        char logString[LOG_SIZE];
+        snprintf(logString, LOG_SIZE, "Failed: Got: %" PRIu64 " Expected: %" PRIu64, positions, expected);
+        debugLog(logString);
+    }
+}
+
+// Test positions taken from https://www.chessprogramming.org/Perft_Results
+void runTests(bool verbose)
+{
+    testFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 5, 4865609, verbose);
+    testFen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 0", 5, 193690690, verbose);
+    testFen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0", 5, 674624, verbose);
+    testFen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", 5, 15833292, verbose);
+    testFen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8", 5, 89941194, verbose);
+    testFen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10", 5, 164075551, verbose);
 }

@@ -76,7 +76,7 @@ void *windowsLoadFile(const char *fileName)
 	}
 	if (bytesRead != fileSize.LowPart)
 	{
-		snprintf(errorBuffer, LOG_SIZE, "%s: read %d bytes. %d expected.\r\n", fileName, bytesRead, fileSize.LowPart);
+		snprintf(errorBuffer, LOG_SIZE, "%s: read %lu bytes. %lu expected.\r\n", fileName, bytesRead, fileSize.LowPart);
 		OutputDebugStringA(errorBuffer);
 		CloseHandle(file);
 		free(data);

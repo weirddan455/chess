@@ -154,6 +154,17 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 		OutputDebugStringA("Failed to seed RNG\r\n");
 		return 1;
 	}
+	initZobrist();
+	if (strcmp(lpCmdLine, "-test") == 0)
+	{
+		runTests(false);
+		return 0;
+	}
+	else if (strcmp(lpCmdLine, "-test -verbose") == 0)
+	{
+		runTests(true);
+		return 0;
+	}
 	frameBufferDC = CreateCompatibleDC(NULL);
 	if (frameBufferDC == NULL)
 	{
@@ -211,7 +222,6 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	}
 	loadImages();
 	loadFont();
-	initZobrist();
 	initGameState();
 	renderFrame();
 	if (strcmp(lpCmdLine, "-ai") == 0)

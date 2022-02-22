@@ -59,7 +59,7 @@ void *linuxLoadFile(const char *fileName)
     }
     if (bytesRead != fileInfo.st_size)
     {
-        printf("%s: read %ld bytes. %ld expected.\n", fileName, bytesRead, fileInfo.st_size);
+        printf("%s: read %zd bytes. %zd expected.\n", fileName, bytesRead, fileInfo.st_size);
         close(fd);
         free(data);
         return NULL;

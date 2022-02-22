@@ -14,7 +14,7 @@ HDC frameBufferDC;
 
 CONDITION_VARIABLE cond = CONDITION_VARIABLE_INIT;
 SRWLOCK lock = SRWLOCK_INIT;
-volatile bool AIThreadWakeup;
+bool AIThreadWakeup;
 
 void windowsBlitToScreen(void)
 {
@@ -110,6 +110,6 @@ void windowsMakeComputerMove(void)
 {
 	AcquireSRWLockExclusive(&lock);
 	AIThreadWakeup = true;
-	ReleaseSRWLockExclusive(&lock);
 	WakeConditionVariable(&cond);
+	ReleaseSRWLockExclusive(&lock);
 }

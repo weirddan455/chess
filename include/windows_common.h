@@ -9,7 +9,7 @@ extern HDC frameBufferDC;
 
 extern CONDITION_VARIABLE cond;
 extern SRWLOCK lock;
-extern volatile bool AIThreadWakeup;
+extern bool AIThreadWakeup;
 
 void windowsBlitToScreen(void);
 void *windowsLoadFile(const char *fileName);

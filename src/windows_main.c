@@ -117,7 +117,7 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 	return DefWindowProcA(hwnd, Msg, wParam, lParam);
 }
 
-static DWORD AIThreadLoop(_In_ LPVOID lpParameter)
+static DWORD WINAPI AIThreadLoop(_In_ LPVOID lpParameter)
 {
 	HWND window = lpParameter;
 	while (true)

@@ -3,7 +3,6 @@ project(Chess LANGUAGES C)
 set(COMMON_SOURCE_FILES "src/events.c" "src/game.c" "src/pcgrandom.c" "src/platform.c" "src/renderer.c" "src/fonts.c" "src/assets.c")
 if (WIN32)
     add_executable(chess WIN32 src/windows_main.c src/windows_common.c ${COMMON_SOURCE_FILES})
-    target_link_libraries(chess PRIVATE bcrypt) # Windows system libary.  Used for BCryptGenRandom for seeding RNG.
 else()
     add_executable(chess src/linux_main.c src/linux_common.c ${COMMON_SOURCE_FILES})
     target_link_libraries(chess PRIVATE m X11 pthread)

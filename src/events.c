@@ -5,7 +5,7 @@
 
 #include <stddef.h>
 
-volatile bool AIisThinking;
+bool AIisThinking;
 
 static uint16_t moves[64];
 static int numMoves;

@@ -1,6 +1,6 @@
 #include <windows.h>
 #include <windowsx.h>
-#include <bcrypt.h>
+#include <ntsecapi.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -138,7 +138,7 @@ static DWORD AIThreadLoop(_In_ LPVOID lpParameter)
 static bool seedRng(void)
 {
 	uint64_t randomBuffer[2];
-	if (BCryptGenRandom(NULL, randomBuffer, 16, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
+	if (!RtlGenRandom(randomBuffer, 16) != 0)
 	{
 		return false;
 	}

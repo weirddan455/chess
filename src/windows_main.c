@@ -1,6 +1,5 @@
 #include <windows.h>
 #include <windowsx.h>
-#include <bcrypt.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,8 +13,9 @@
 #include "assets.h"
 #include "fonts.h"
 
-static HBITMAP framebufferDIB;
+typedef BOOLEAN (WINAPI *WindowsSystemRng)(PVOID, ULONG);
 
+static HBITMAP framebufferDIB;
 static bool playerGame;
 
 static bool newFramebuffer(int width, int height)
@@ -32,7 +32,7 @@ static bool newFramebuffer(int width, int height)
 	bitmapInfo.bmiHeader.biYPelsPerMeter = 0;
 	bitmapInfo.bmiHeader.biClrUsed = 0;
 	bitmapInfo.bmiHeader.biClrImportant = 0;
-	framebufferDIB = CreateDIBSection(frameBufferDC, &bitmapInfo, DIB_RGB_COLORS, &framebuffer.data, NULL, 0);
+	framebufferDIB = CreateDIBSection(frameBufferDC, &bitmapInfo, DIB_RGB_COLORS, (void **)&framebuffer.data, NULL, 0);
 	if (framebufferDIB == NULL)
 	{
 		OutputDebugStringA("CreateDIBSection Failed\r\n");
@@ -117,7 +117,7 @@ LRESULT CALLBACK WindowsCallback(_In_ HWND hwnd, _In_ UINT Msg, _In_ WPARAM wPar
 	return DefWindowProcA(hwnd, Msg, wParam, lParam);
 }
 
-static DWORD AIThreadLoop(_In_ LPVOID lpParameter)
+static DWORD WINAPI AIThreadLoop(_In_ LPVOID lpParameter)
 {
 	HWND window = lpParameter;
 	while (true)
@@ -131,14 +131,25 @@ static DWORD AIThreadLoop(_In_ LPVOID lpParameter)
 
 static bool seedRng(void)
 {
+	bool success = false;
 	uint64_t randomBuffer[2];
-	if (BCryptGenRandom(NULL, randomBuffer, 16, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
+	HMODULE library = LoadLibraryA("advapi32.dll");
+	if (library != NULL)
 	{
-		return false;
+		// Calls RtlGenRandom with dynamic function pointer per MSDN: https://docs.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-rtlgenrandom
+		WindowsSystemRng rng = (WindowsSystemRng)GetProcAddress(library, "SystemFunction036");
+		if (rng != NULL)
+		{
+			if (rng(randomBuffer, 16))
+			{
+				rngState.state = randomBuffer[0];
+				rngState.inc = randomBuffer[1] | 1;
+				success = true;
+			}
+		}
+		FreeLibrary(library);
 	}
-    rngState.state = randomBuffer[0];
-    rngState.inc = randomBuffer[1] | 1;
-    return true;
+	return success;
 }
 
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)

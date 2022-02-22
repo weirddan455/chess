@@ -122,13 +122,7 @@ static DWORD WINAPI AIThreadLoop(_In_ LPVOID lpParameter)
 	HWND window = lpParameter;
 	while (true)
 	{
-		AcquireSRWLockExclusive(&lock);
-		while (!AIThreadWakeup)
-		{
-			SleepConditionVariableSRW(&cond, &lock, INFINITE, 0);
-		}
-		AIThreadWakeup = false;
-		ReleaseSRWLockExclusive(&lock);
+		WaitForSingleObject(event, INFINITE);
 		uint16_t move = getComputerMove();
 		PostMessageA(window, WM_USER, move, 0);
 	}
@@ -238,12 +232,12 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	if (strcmp(lpCmdLine, "-ai") == 0)
 	{
 		AIisThinking = true;
-		AIThreadWakeup = true;
 	}
 	else
 	{
 		playerGame = true;
 	}
+	event = CreateEventA(NULL, FALSE, AIisThinking, NULL);
 	if (CreateThread(NULL, 0, AIThreadLoop, window, 0, NULL) == NULL)
 	{
 		OutputDebugStringA("CreateThread failed\r\n");

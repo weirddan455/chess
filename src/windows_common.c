@@ -12,9 +12,7 @@
 HDC windowDC;
 HDC frameBufferDC;
 
-CONDITION_VARIABLE cond = CONDITION_VARIABLE_INIT;
-SRWLOCK lock = SRWLOCK_INIT;
-bool AIThreadWakeup;
+HANDLE event;
 
 void windowsBlitToScreen(void)
 {
@@ -108,8 +106,5 @@ void windowsDebugLog(const char *message)
 
 void windowsMakeComputerMove(void)
 {
-	AcquireSRWLockExclusive(&lock);
-	AIThreadWakeup = true;
-	WakeConditionVariable(&cond);
-	ReleaseSRWLockExclusive(&lock);
+	SetEvent(event);
 }

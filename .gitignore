@@ -58,3 +58,7 @@ dkms.conf
 #build dir
 build
 win-build
+
+#lichess
+lichess
+lichess.token

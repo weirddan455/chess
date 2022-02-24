@@ -90,12 +90,13 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
                         challengeQueue.back = (challengeQueue.back + 1) % QUEUE_CAPACITY;
                         challengeQueue.size += 1;
                         pthread_cond_signal(&cond);
+                        pthread_mutex_unlock(&mutex);
                     }
                     else
                     {
+                        pthread_mutex_unlock(&mutex);
                         puts("Challenge queue is full");
                     }
-                    pthread_mutex_unlock(&mutex);
                 }
             }
             writeBuffer->size = 0;

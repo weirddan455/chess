@@ -60,10 +60,9 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
         writeBuffer->capacity = newCapacity;
         writeBuffer->data = newData;
     }
-    size_t index = 0;
-    while (index < realSize)
+    for (size_t i = 0; i < realSize; i++)
     {
-        char c = ptr[index];
+        char c = ptr[i];
         if (c == '\n')
         {
             if (writeBuffer->size > 48)
@@ -74,29 +73,29 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
                 const char *challengeCompareString = "{\"type\":\"challenge\",\"challenge\":{\"id\":\"";
                 if (memcmp(writeBuffer->data, challengeCompareString, strlen(challengeCompareString)) == 0)
                 {
-                    if (challengeQueue.size >= QUEUE_CAPACITY)
+                    bool accept;
+                    if (strstr(writeBuffer->data, "variant\":{\"key\":\"standard") != NULL)
                     {
-                        puts("Challenege queue is full");
+                        accept = true;
                     }
                     else
                     {
-                        bool accept;
-                        if (strstr(writeBuffer->data, "variant\":{\"key\":\"standard") != NULL)
-                        {
-                            accept = true;
-                        }
-                        else
-                        {
-                            accept = false;
-                        }
-                        pthread_mutex_lock(&mutex);
+                        accept = false;
+                    }
+                    pthread_mutex_lock(&mutex);
+                    if (challengeQueue.size < QUEUE_CAPACITY)
+                    {
                         memcpy(challengeQueue.queue[challengeQueue.back].id, &writeBuffer->data[39], 8);
                         challengeQueue.queue[challengeQueue.back].accept = accept;
                         challengeQueue.back = (challengeQueue.back + 1) % QUEUE_CAPACITY;
                         challengeQueue.size += 1;
                         pthread_cond_signal(&cond);
-                        pthread_mutex_unlock(&mutex);
                     }
+                    else
+                    {
+                        puts("Challenge queue is full");
+                    }
+                    pthread_mutex_unlock(&mutex);
                 }
             }
             writeBuffer->size = 0;
@@ -106,7 +105,6 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
             writeBuffer->data[writeBuffer->size] = c;
             writeBuffer->size += 1;
         }
-        index++;
     }
     return realSize;
 }

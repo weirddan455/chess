@@ -9,13 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-
-static bool challenge;
-static char challengeId[8];
-
-static char headerString[128];
+#define QUEUE_CAPACITY 16
 
 typedef struct Buffer
 {
@@ -24,7 +18,33 @@ typedef struct Buffer
     char *data;
 } Buffer;
 
-size_t writeCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
+typedef struct Challenge
+{
+    bool accept;
+    char id[8];
+} Challenge;
+
+typedef struct ChallengeQueue
+{
+    size_t size;
+    size_t front;
+    size_t back;
+    Challenge queue[QUEUE_CAPACITY];
+} ChallengeQueue;
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
+static ChallengeQueue challengeQueue;
+
+static char headerString[128];
+
+size_t stubCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    return size * nmemb;
+}
+
+size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
     size_t realSize = size * nmemb;
     Buffer *writeBuffer = userdata;
@@ -43,34 +63,55 @@ size_t writeCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
     size_t index = 0;
     while (index < realSize)
     {
-        if (ptr[index] == '\n')
+        char c = ptr[index];
+        if (c == '\n')
         {
             if (writeBuffer->size > 48)
             {
+                writeBuffer->data[writeBuffer->size] = 0;
+                writeBuffer->size += 1;
+                printf("Buffer Size: %zu\n%s\n\n", writeBuffer->size, writeBuffer->data);
                 const char *challengeCompareString = "{\"type\":\"challenge\",\"challenge\":{\"id\":\"";
                 if (memcmp(writeBuffer->data, challengeCompareString, strlen(challengeCompareString)) == 0)
                 {
-                    pthread_mutex_lock(&mutex);
-                    challenge = true;
-                    memcpy(challengeId, &writeBuffer->data[39], 8);
-                    pthread_cond_signal(&cond);
-                    pthread_mutex_unlock(&mutex);
+                    if (challengeQueue.size >= QUEUE_CAPACITY)
+                    {
+                        puts("Challenege queue is full");
+                    }
+                    else
+                    {
+                        bool accept;
+                        if (strstr(writeBuffer->data, "variant\":{\"key\":\"standard") != NULL)
+                        {
+                            accept = true;
+                        }
+                        else
+                        {
+                            accept = false;
+                        }
+                        pthread_mutex_lock(&mutex);
+                        memcpy(challengeQueue.queue[challengeQueue.back].id, &writeBuffer->data[39], 8);
+                        challengeQueue.queue[challengeQueue.back].accept = accept;
+                        challengeQueue.back = (challengeQueue.back + 1) % QUEUE_CAPACITY;
+                        challengeQueue.size += 1;
+                        pthread_cond_signal(&cond);
+                        pthread_mutex_unlock(&mutex);
+                    }
                 }
             }
             writeBuffer->size = 0;
-            index += 1;
         }
         else
         {
-            writeBuffer->data[writeBuffer->size] = ptr[index];
+            writeBuffer->data[writeBuffer->size] = c;
             writeBuffer->size += 1;
-            index += 1;
         }
+        index++;
     }
     return realSize;
 }
 
-void *workerThreadLoop(void *arg)
+void *challengeThreadLoop(void *arg)
 {
     CURL *curl = curl_easy_init();
     if (curl == NULL)
@@ -90,32 +131,43 @@ void *workerThreadLoop(void *arg)
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 0L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, stubCallback);
 
     const char *urlStart = "https://lichess.org/api/challenge/";
-    const char *urlEnd = "/accept";
     size_t urlStartLen = strlen(urlStart);
 
     char url[64];
     memcpy(url, urlStart, urlStartLen);
-    memcpy(&url[urlStartLen + 8], urlEnd, strlen(urlEnd) + 1);
 
     while (true)
     {
         pthread_mutex_lock(&mutex);
-        while (!challenge)
+        while (challengeQueue.size < 1)
         {
             pthread_cond_wait(&cond, &mutex);
         }
-        memcpy(&url[urlStartLen], challengeId, 8);
-        challenge = false;
+        bool accept = challengeQueue.queue[challengeQueue.front].accept;
+        memcpy(&url[urlStartLen], challengeQueue.queue[challengeQueue.front].id, 8);
+        challengeQueue.front = (challengeQueue.front + 1) % QUEUE_CAPACITY;
+        challengeQueue.size -= 1;
         pthread_mutex_unlock(&mutex);
+        if (accept)
+        {
+            strcpy(&url[urlStartLen + 8], "/accept");
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 0L);
+        }
+        else
+        {
+            strcpy(&url[urlStartLen + 8], "/decline");
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "reason=standard");
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, -1L);
+        }
         curl_easy_setopt(curl, CURLOPT_URL, url);
         if (curl_easy_perform(curl) != CURLE_OK)
         {
-            printf("curl_easy_perform failed: %s\n", errorBuffer);
+            printf("curl_easy_perform failed (challenge thread): %s\n", errorBuffer);
         }
-        puts("Challenge sent");
     }
     return NULL;
 }
@@ -190,8 +242,8 @@ int main(void)
         puts("Failed to generate authentication header");
         return 1;
     }
-    pthread_t workerThread;
-    if (pthread_create(&workerThread, NULL, workerThreadLoop, NULL) != 0)
+    pthread_t challengeThread;
+    if (pthread_create(&challengeThread, NULL, challengeThreadLoop, NULL) != 0)
     {
         puts("pthread_create failed");
         return 1;
@@ -210,7 +262,7 @@ int main(void)
     }
     Buffer writeBuffer;
     writeBuffer.size = 0;
-    writeBuffer.capacity = 16384;
+    writeBuffer.capacity = 4096;
     writeBuffer.data = malloc(writeBuffer.capacity);
     if (writeBuffer.data == NULL)
     {
@@ -222,12 +274,12 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
     curl_easy_setopt(curl, CURLOPT_URL, "https://lichess.org/api/stream/event");
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, eventCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &writeBuffer);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     if (curl_easy_perform(curl) != CURLE_OK)
     {
-        printf("curl_easy_perform failed: %s\n", errorBuffer);
+        printf("curl_easy_perform failed (main thread): %s\n", errorBuffer);
         return 1;
     }
     return 0;

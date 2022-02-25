@@ -139,6 +139,44 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
     return realSize;
 }
 
+size_t gameStartCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    puts("Entering game start callback");
+    size_t realSize = size * nmemb;
+    Buffer *writeBuffer = userdata;
+    if (writeBuffer->size + realSize > writeBuffer->capacity)
+    {
+        size_t newCapacity = writeBuffer->capacity + writeBuffer->capacity;
+        char *newData = realloc(writeBuffer->data, newCapacity);
+        if (newData == NULL)
+        {
+            puts("Realloc failed");
+            return 0;
+        }
+        writeBuffer->capacity = newCapacity;
+        writeBuffer->data = newData;
+    }
+    for (size_t i = 0; i < realSize; i++)
+    {
+        char c = ptr[i];
+        if (c == '\n')
+        {
+            if (writeBuffer->size > 4)
+            {
+                writeBuffer->data[writeBuffer->size] = 0;
+                printf("%s\n\n", writeBuffer->data);
+            }
+            writeBuffer->size = 0;
+        }
+        else
+        {
+            writeBuffer->data[writeBuffer->size] = c;
+            writeBuffer->size += 1;
+        }
+    }
+    return realSize;
+}
+
 void *challengeThreadLoop(void *arg)
 {
     CURL *curl = curl_easy_init();
@@ -214,16 +252,28 @@ void *gameStartThreadLoop(void *arg)
         puts("curl_slist_append failed");
         exit(1);
     }
+    Buffer writeBuffer;
+    writeBuffer.size = 0;
+    writeBuffer.capacity = 4096;
+    writeBuffer.data = malloc(writeBuffer.capacity);
+    if (writeBuffer.data == NULL)
+    {
+        puts("malloc failed");
+        exit(1);
+    }
     char errorBuffer[CURL_ERROR_SIZE];
     memset(errorBuffer, 0, CURL_ERROR_SIZE);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, gameStartCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &writeBuffer);
 
     const char *urlStart = "https://lichess.org/api/bot/game/stream/";
     size_t urlStartLen = strlen(urlStart);
 
     char url[64];
+    memset(url, 0, 64);
     memcpy(url, urlStart, urlStartLen);
 
     while(true)
@@ -322,7 +372,7 @@ int main(void)
         puts("pthread_create failed");
         return 1;
     }
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 16; i++)
     {
         if (pthread_create(&thread, NULL, gameStartThreadLoop, NULL) != 0)
         {

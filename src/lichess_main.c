@@ -32,10 +32,21 @@ typedef struct ChallengeQueue
     Challenge queue[QUEUE_CAPACITY];
 } ChallengeQueue;
 
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+typedef struct GameStartQueue
+{
+    size_t size;
+    size_t front;
+    size_t back;
+    char id[QUEUE_CAPACITY][8];
+} GameStartQueue;
+
+static pthread_mutex_t challengeMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t gameStartMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t challengeCond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t gameStartCond = PTHREAD_COND_INITIALIZER;
 
 static ChallengeQueue challengeQueue;
+static GameStartQueue gameStartQueue;
 
 static char headerString[128];
 
@@ -65,13 +76,14 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
         char c = ptr[i];
         if (c == '\n')
         {
-            if (writeBuffer->size > 48)
+            if (writeBuffer->size > 72)
             {
                 writeBuffer->data[writeBuffer->size] = 0;
                 writeBuffer->size += 1;
-                printf("Buffer Size: %zu\n%s\n\n", writeBuffer->size, writeBuffer->data);
-                const char *challengeCompareString = "{\"type\":\"challenge\",\"challenge\":{\"id\":\"";
-                if (memcmp(writeBuffer->data, challengeCompareString, strlen(challengeCompareString)) == 0)
+                //printf("Buffer Size: %zu\n%s\n\n", writeBuffer->size, writeBuffer->data);
+                const char *challengeCompareString = "challenge\"";
+                const char *gameStartCompareString = "gameStart\"";
+                if (memcmp(&writeBuffer->data[9], challengeCompareString, strlen(challengeCompareString)) == 0)
                 {
                     bool accept;
                     if (strstr(writeBuffer->data, "variant\":{\"key\":\"standard") != NULL)
@@ -82,20 +94,37 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
                     {
                         accept = false;
                     }
-                    pthread_mutex_lock(&mutex);
+                    pthread_mutex_lock(&challengeMutex);
                     if (challengeQueue.size < QUEUE_CAPACITY)
                     {
                         memcpy(challengeQueue.queue[challengeQueue.back].id, &writeBuffer->data[39], 8);
                         challengeQueue.queue[challengeQueue.back].accept = accept;
                         challengeQueue.back = (challengeQueue.back + 1) % QUEUE_CAPACITY;
                         challengeQueue.size += 1;
-                        pthread_cond_signal(&cond);
-                        pthread_mutex_unlock(&mutex);
+                        pthread_cond_signal(&challengeCond);
+                        pthread_mutex_unlock(&challengeMutex);
                     }
                     else
                     {
-                        pthread_mutex_unlock(&mutex);
+                        pthread_mutex_unlock(&challengeMutex);
                         puts("Challenge queue is full");
+                    }
+                }
+                else if (memcmp(&writeBuffer->data[9], gameStartCompareString, strlen(gameStartCompareString)) == 0)
+                {
+                    pthread_mutex_lock(&gameStartMutex);
+                    if (gameStartQueue.size < QUEUE_CAPACITY)
+                    {
+                        memcpy(gameStartQueue.id[gameStartQueue.back], &writeBuffer->data[62], 8);
+                        gameStartQueue.back = (gameStartQueue.back + 1) % QUEUE_CAPACITY;
+                        gameStartQueue.size += 1;
+                        pthread_cond_signal(&gameStartCond);
+                        pthread_mutex_unlock(&gameStartMutex);
+                    }
+                    else
+                    {
+                        pthread_mutex_unlock(&gameStartMutex);
+                        puts("Game Start queue is full");
                     }
                 }
             }
@@ -140,16 +169,16 @@ void *challengeThreadLoop(void *arg)
 
     while (true)
     {
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(&challengeMutex);
         while (challengeQueue.size < 1)
         {
-            pthread_cond_wait(&cond, &mutex);
+            pthread_cond_wait(&challengeCond, &challengeMutex);
         }
         bool accept = challengeQueue.queue[challengeQueue.front].accept;
         memcpy(&url[urlStartLen], challengeQueue.queue[challengeQueue.front].id, 8);
         challengeQueue.front = (challengeQueue.front + 1) % QUEUE_CAPACITY;
         challengeQueue.size -= 1;
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_unlock(&challengeMutex);
         if (accept)
         {
             strcpy(&url[urlStartLen + 8], "/accept");
@@ -166,6 +195,52 @@ void *challengeThreadLoop(void *arg)
         if (curl_easy_perform(curl) != CURLE_OK)
         {
             printf("curl_easy_perform failed (challenge thread): %s\n", errorBuffer);
+        }
+    }
+    return NULL;
+}
+
+void *gameStartThreadLoop(void *arg)
+{
+    CURL *curl = curl_easy_init();
+    if (curl == NULL)
+    {
+        puts("curl_easy_init failed");
+        exit(1);
+    }
+    struct curl_slist *headers = curl_slist_append(NULL, headerString);
+    if (headers == NULL)
+    {
+        puts("curl_slist_append failed");
+        exit(1);
+    }
+    char errorBuffer[CURL_ERROR_SIZE];
+    memset(errorBuffer, 0, CURL_ERROR_SIZE);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    const char *urlStart = "https://lichess.org/api/bot/game/stream/";
+    size_t urlStartLen = strlen(urlStart);
+
+    char url[64];
+    memcpy(url, urlStart, urlStartLen);
+
+    while(true)
+    {
+        pthread_mutex_lock(&gameStartMutex);
+        while (gameStartQueue.size < 1)
+        {
+            pthread_cond_wait(&gameStartCond, &gameStartMutex);
+        }
+        memcpy(&url[urlStartLen], gameStartQueue.id[gameStartQueue.front], 8);
+        gameStartQueue.front = (gameStartQueue.front + 1) % QUEUE_CAPACITY;
+        gameStartQueue.size -= 1;
+        pthread_mutex_unlock(&gameStartMutex);
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        if (curl_easy_perform(curl) != CURLE_OK)
+        {
+            printf("curl_easy_perform failed (game start thread): %s\n", errorBuffer);
         }
     }
     return NULL;
@@ -241,11 +316,19 @@ int main(void)
         puts("Failed to generate authentication header");
         return 1;
     }
-    pthread_t challengeThread;
-    if (pthread_create(&challengeThread, NULL, challengeThreadLoop, NULL) != 0)
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, challengeThreadLoop, NULL) != 0)
     {
         puts("pthread_create failed");
         return 1;
+    }
+    for (int i = 0; i < 4; i++)
+    {
+        if (pthread_create(&thread, NULL, gameStartThreadLoop, NULL) != 0)
+        {
+            puts("pthread_create failed");
+            return 1;
+        }
     }
     CURL *curl = curl_easy_init();
     if (curl == NULL)

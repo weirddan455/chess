@@ -9,8 +9,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define QUEUE_CAPACITY 16
-
 typedef struct Buffer
 {
     size_t size;
@@ -22,31 +20,25 @@ typedef struct Challenge
 {
     bool accept;
     char id[8];
+    struct Challenge *next;
 } Challenge;
 
-typedef struct ChallengeQueue
+typedef struct GameStart
 {
-    size_t size;
-    size_t front;
-    size_t back;
-    Challenge queue[QUEUE_CAPACITY];
-} ChallengeQueue;
-
-typedef struct GameStartQueue
-{
-    size_t size;
-    size_t front;
-    size_t back;
-    char id[QUEUE_CAPACITY][8];
-} GameStartQueue;
+    char id[8];
+    struct GameStart *next;
+} GameStart;
 
 static pthread_mutex_t challengeMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t gameStartMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t challengeCond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t gameStartCond = PTHREAD_COND_INITIALIZER;
 
-static ChallengeQueue challengeQueue;
-static GameStartQueue gameStartQueue;
+static Challenge *challengeQueueFront = NULL;
+static Challenge *challengeQueueBack = NULL;
+
+static GameStart *gameStartQueueFront = NULL;
+static GameStart *gameStartQueueBack = NULL;
 
 static char headerString[128];
 
@@ -65,8 +57,8 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
         char *newData = realloc(writeBuffer->data, newCapacity);
         if (newData == NULL)
         {
-            puts("Realloc failed");
-            return 0;
+            puts("realloc failed");
+            exit(1);
         }
         writeBuffer->capacity = newCapacity;
         writeBuffer->data = newData;
@@ -85,47 +77,57 @@ size_t eventCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
                 const char *gameStartCompareString = "gameStart\"";
                 if (memcmp(&writeBuffer->data[9], challengeCompareString, strlen(challengeCompareString)) == 0)
                 {
-                    bool accept;
+                    Challenge *challenge = malloc(sizeof(Challenge));
+                    if (challenge == NULL)
+                    {
+                        puts("malloc failed");
+                        exit(1);
+                    }
                     if (strstr(writeBuffer->data, "variant\":{\"key\":\"standard") != NULL)
                     {
-                        accept = true;
+                        challenge->accept = true;
                     }
                     else
                     {
-                        accept = false;
+                        challenge->accept = false;
                     }
+                    memcpy(challenge->id, &writeBuffer->data[39], 8);
+                    challenge->next = NULL;
                     pthread_mutex_lock(&challengeMutex);
-                    if (challengeQueue.size < QUEUE_CAPACITY)
+                    if (challengeQueueFront == NULL)
                     {
-                        memcpy(challengeQueue.queue[challengeQueue.back].id, &writeBuffer->data[39], 8);
-                        challengeQueue.queue[challengeQueue.back].accept = accept;
-                        challengeQueue.back = (challengeQueue.back + 1) % QUEUE_CAPACITY;
-                        challengeQueue.size += 1;
-                        pthread_cond_signal(&challengeCond);
-                        pthread_mutex_unlock(&challengeMutex);
+                        challengeQueueFront = challenge;
                     }
                     else
                     {
-                        pthread_mutex_unlock(&challengeMutex);
-                        puts("Challenge queue is full");
+                        challengeQueueBack->next = challenge;
                     }
+                    challengeQueueBack = challenge;
+                    pthread_cond_signal(&challengeCond);
+                    pthread_mutex_unlock(&challengeMutex);
                 }
                 else if (memcmp(&writeBuffer->data[9], gameStartCompareString, strlen(gameStartCompareString)) == 0)
                 {
-                    pthread_mutex_lock(&gameStartMutex);
-                    if (gameStartQueue.size < QUEUE_CAPACITY)
+                    GameStart *gameStart = malloc(sizeof(GameStart));
+                    if (gameStart == NULL)
                     {
-                        memcpy(gameStartQueue.id[gameStartQueue.back], &writeBuffer->data[62], 8);
-                        gameStartQueue.back = (gameStartQueue.back + 1) % QUEUE_CAPACITY;
-                        gameStartQueue.size += 1;
-                        pthread_cond_signal(&gameStartCond);
-                        pthread_mutex_unlock(&gameStartMutex);
+                        puts("malloc failed");
+                        exit(1);
+                    }
+                    memcpy(gameStart->id, &writeBuffer->data[62], 8);
+                    gameStart->next = NULL;
+                    pthread_mutex_lock(&gameStartMutex);
+                    if (gameStartQueueFront == NULL)
+                    {
+                        gameStartQueueFront = gameStart;
                     }
                     else
                     {
-                        pthread_mutex_unlock(&gameStartMutex);
-                        puts("Game Start queue is full");
+                        gameStartQueueBack->next = gameStart;
                     }
+                    gameStartQueueBack = gameStart;
+                    pthread_cond_signal(&gameStartCond);
+                    pthread_mutex_unlock(&gameStartMutex);
                 }
             }
             writeBuffer->size = 0;
@@ -151,7 +153,7 @@ size_t gameStartCallback(char *ptr, size_t size, size_t nmemb, void *userdata)
         if (newData == NULL)
         {
             puts("Realloc failed");
-            return 0;
+            exit(1);
         }
         writeBuffer->capacity = newCapacity;
         writeBuffer->data = newData;
@@ -208,15 +210,16 @@ void *challengeThreadLoop(void *arg)
     while (true)
     {
         pthread_mutex_lock(&challengeMutex);
-        while (challengeQueue.size < 1)
+        while (challengeQueueFront == NULL)
         {
             pthread_cond_wait(&challengeCond, &challengeMutex);
         }
-        bool accept = challengeQueue.queue[challengeQueue.front].accept;
-        memcpy(&url[urlStartLen], challengeQueue.queue[challengeQueue.front].id, 8);
-        challengeQueue.front = (challengeQueue.front + 1) % QUEUE_CAPACITY;
-        challengeQueue.size -= 1;
+        Challenge *challenge = challengeQueueFront;
+        challengeQueueFront = challenge->next;
         pthread_mutex_unlock(&challengeMutex);
+        bool accept = challenge->accept;
+        memcpy(&url[urlStartLen], challenge->id, 8);
+        free(challenge);
         if (accept)
         {
             strcpy(&url[urlStartLen + 8], "/accept");
@@ -279,14 +282,15 @@ void *gameStartThreadLoop(void *arg)
     while(true)
     {
         pthread_mutex_lock(&gameStartMutex);
-        while (gameStartQueue.size < 1)
+        while (gameStartQueueFront == NULL)
         {
             pthread_cond_wait(&gameStartCond, &gameStartMutex);
         }
-        memcpy(&url[urlStartLen], gameStartQueue.id[gameStartQueue.front], 8);
-        gameStartQueue.front = (gameStartQueue.front + 1) % QUEUE_CAPACITY;
-        gameStartQueue.size -= 1;
+        GameStart *gameStart = gameStartQueueFront;
+        gameStartQueueFront = gameStart->next;
         pthread_mutex_unlock(&gameStartMutex);
+        memcpy(&url[urlStartLen], gameStart->id, 8);
+        free(gameStart);
         curl_easy_setopt(curl, CURLOPT_URL, url);
         if (curl_easy_perform(curl) != CURLE_OK)
         {
